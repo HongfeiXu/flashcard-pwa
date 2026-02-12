@@ -1,7 +1,7 @@
 // app.js - 主逻辑
 
 import { getAllCards, getCard, addCard, putCard, deleteCard } from './db.js';
-import { generateCard, getApiKey } from './api.js';
+import { generateCard, getApiKey, getCachedCard, setCachedCard } from './api.js';
 import { speak } from './tts.js';
 
 // --- Tab 切换 ---
@@ -131,6 +131,49 @@ let isGenerating = false;
 
 let previewWord = null; // 当前预览区的单词
 
+function showPreview(word, data) {
+  const card = {
+    word: data.word || word,
+    phonetic: data.phonetic || '',
+    pos: data.pos || '',
+    definition: data.definition || '',
+    example: data.example || '',
+    example_cn: data.example_cn || '',
+    mastered: false,
+    createdAt: Date.now(),
+    reviewCount: 0,
+    correctCount: 0,
+    lastReviewedAt: null
+  };
+
+  addResult.innerHTML = `
+    <div class="preview-card">
+      <div class="preview-word">${card.word}</div>
+      <div class="preview-phonetic">${card.phonetic}</div>
+      <div class="preview-pos">${card.pos}</div>
+      <div class="preview-def">${card.definition}</div>
+      <div class="preview-example">${card.example}</div>
+      <div class="preview-example-cn">${card.example_cn}</div>
+    </div>
+    <button class="btn btn-primary" id="btn-save">保存到词库</button>`;
+
+  previewWord = word;
+  isGenerating = false;
+  addBtn.disabled = false;
+
+  document.getElementById('btn-save').onclick = async () => {
+    try {
+      await addCard(card);
+      previewWord = null;
+      addResult.innerHTML = '<div class="success-msg">✅ 已保存！</div>';
+      addInput.value = '';
+      addInput.focus();
+    } catch (e) {
+      addResult.innerHTML = '<div class="error-msg">保存失败：' + e.message + '</div>';
+    }
+  };
+}
+
 async function handleAdd() {
   const word = addInput.value.trim().toLowerCase();
   if (!word || isGenerating) return;
@@ -149,53 +192,21 @@ async function handleAdd() {
     return;
   }
 
+  // 检查 LRU 缓存
+  const cached = getCachedCard(word);
+  if (cached) {
+    showPreview(word, cached);
+    return;
+  }
+
   isGenerating = true;
   addBtn.disabled = true;
   addResult.innerHTML = '<div class="loading"><div class="spinner"></div><p>正在生成卡片...</p></div>';
 
   try {
     const data = await generateCard(word);
-    const card = {
-      word: data.word || word,
-      phonetic: data.phonetic || '',
-      pos: data.pos || '',
-      definition: data.definition || '',
-      example: data.example || '',
-      example_cn: data.example_cn || '',
-      mastered: false,
-      createdAt: Date.now(),
-      reviewCount: 0,
-      correctCount: 0,
-      lastReviewedAt: null
-    };
-
-    addResult.innerHTML = `
-      <div class="preview-card">
-        <div class="preview-word">${card.word}</div>
-        <div class="preview-phonetic">${card.phonetic}</div>
-        <div class="preview-pos">${card.pos}</div>
-        <div class="preview-def">${card.definition}</div>
-        <div class="preview-example">${card.example}</div>
-        <div class="preview-example-cn">${card.example_cn}</div>
-      </div>
-      <button class="btn btn-primary" id="btn-save">保存到词库</button>`;
-
-    previewWord = word;
-    // 预览阶段：保持按钮禁用，防止重复调用浪费 API
-    document.getElementById('btn-save').onclick = async () => {
-      try {
-        await addCard(card);
-        previewWord = null;
-        addResult.innerHTML = '<div class="success-msg">✅ 已保存！</div>';
-        addInput.value = '';
-        addInput.focus();
-      } catch (e) {
-        addResult.innerHTML = '<div class="error-msg">保存失败：' + e.message + '</div>';
-      } finally {
-        isGenerating = false;
-        addBtn.disabled = false;
-      }
-    };
+    setCachedCard(word, data);
+    showPreview(word, data);
   } catch (err) {
     const msg = err.message === 'NO_API_KEY' ? '请先在设置中输入 API Key' : err.message;
     addResult.innerHTML = `<div class="error-msg">${msg}</div><button class="btn btn-primary" id="btn-retry">重试</button>`;

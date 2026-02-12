@@ -97,4 +97,35 @@ async function generateCard(word) {
   }
 }
 
-export { generateCard, getApiKey };
+// --- LRU 缓存（最多 100 个单词，存 localStorage）---
+const CACHE_KEY = 'card_cache';
+const CACHE_MAX = 100;
+
+function getCache() {
+  try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || []; }
+  catch { return []; }
+}
+
+function getCachedCard(word) {
+  const cache = getCache();
+  const idx = cache.findIndex(e => e.word === word);
+  if (idx === -1) return null;
+  // 命中：移到末尾（最近使用）
+  const [entry] = cache.splice(idx, 1);
+  cache.push(entry);
+  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+  return entry.data;
+}
+
+function setCachedCard(word, data) {
+  const cache = getCache();
+  // 已存在则先移除
+  const idx = cache.findIndex(e => e.word === word);
+  if (idx !== -1) cache.splice(idx, 1);
+  cache.push({ word, data });
+  // 超过上限，丢弃最旧的
+  while (cache.length > CACHE_MAX) cache.shift();
+  localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+}
+
+export { generateCard, getApiKey, getCachedCard, setCachedCard };
