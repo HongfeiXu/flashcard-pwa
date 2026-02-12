@@ -201,6 +201,15 @@ async function handleAdd() {
 
 addBtn.addEventListener('click', handleAdd);
 addInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAdd(); });
+// 输入内容变化时，如果处于预览未保存状态，解锁生成按钮
+addInput.addEventListener('input', () => {
+  if (isGenerating && !addBtn.disabled) return; // 正在调 API，不干扰
+  if (addBtn.disabled && addResult.querySelector('#btn-save')) {
+    // 预览阶段 + 用户改了输入 → 解锁
+    isGenerating = false;
+    addBtn.disabled = false;
+  }
+});
 
 // --- 词库页 ---
 const libraryList = document.getElementById('library-list');
