@@ -23,9 +23,8 @@ function parseAIResponse(data) {
   text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   // 移除可能的 <think>...</think> 标签（某些模型会返回）
   text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-  // 替换中文引号为英文引号（AI 有时会返回中文引号导致 JSON 解析失败）
-  text = text.replace(/\u201c/g, '"').replace(/\u201d/g, '"');
-  text = text.replace(/\u2018/g, "'").replace(/\u2019/g, "'");
+  // 中文引号在 JSON 字符串值内是合法的 UTF-8，不需要替换
+  // 但如果 AI 用中文引号作为 JSON 结构符号（极少见），则需要特殊处理
   // 尝试提取 JSON 对象（找第一个 { 到最后一个 }）
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -35,14 +34,18 @@ function parseAIResponse(data) {
   try {
     return JSON.parse(text);
   } catch (e) {
-    // 尝试修复常见问题：尾部多余逗号
-    const fixed = text.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
-    try {
-      return JSON.parse(fixed);
-    } catch (e2) {
-      console.error('AI response parse failed:', text);
-      throw new Error('AI 返回格式异常，请重试');
-    }
+    // 修复1：尾部多余逗号
+    let fixed = text.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+    try { return JSON.parse(fixed); } catch {}
+
+    // 修复2：AI 可能用中文引号 "" 作为 JSON 结构符（替换非字符串内的中文引号）
+    fixed = text
+      .replace(/\u201c([^"\u201c\u201d]*)\u201d/g, '"$1"')  // "key" → "key"
+      .replace(/,\s*}/g, '}');
+    try { return JSON.parse(fixed); } catch {}
+
+    console.error('AI response parse failed:', text);
+    throw new Error('AI 返回格式异常，请重试');
   }
 }
 
