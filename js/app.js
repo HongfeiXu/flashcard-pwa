@@ -87,7 +87,7 @@ function showCard() {
           <div class="card-phonetic">${currentCard.phonetic || ''}</div>
           <div class="card-pos">${currentCard.pos || ''}</div>
           <div class="card-def">${currentCard.definition || ''}</div>
-          <div class="card-example">${currentCard.example || ''}</div>
+          <div class="card-example">${currentCard.example || ''}${currentCard.example ? ' <button class="btn-speak-inline" id="btn-tts-example">🔊</button>' : ''}</div>
           <div class="card-example-cn">${currentCard.example_cn || ''}</div>
         </div>
       </div>
@@ -106,6 +106,8 @@ function showCard() {
   };
 
   document.getElementById('btn-tts').onclick = (e) => { e.stopPropagation(); speak(currentCard.word); };
+  const ttsExample = document.getElementById('btn-tts-example');
+  if (ttsExample) ttsExample.onclick = (e) => { e.stopPropagation(); speak(currentCard.example); };
 
   document.getElementById('btn-known').onclick = async () => {
     reviewQueue.shift();
@@ -230,6 +232,68 @@ addInput.addEventListener('input', () => {
   }
 });
 
+// --- 经济学人词汇同步 ---
+function getVocabUrl() {
+  const h = location.hostname;
+  if (h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.')) return '/vocab.json';
+  return 'https://hongfeixu.github.io/flashcard-pwa/vocab.json';
+}
+
+function updateSyncTime() {
+  const el = document.getElementById('sync-time');
+  const ts = localStorage.getItem('lastVocabSync');
+  if (ts) {
+    const d = new Date(Number(ts));
+    el.textContent = `上次同步：${d.toLocaleDateString()} ${d.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}`;
+  } else {
+    el.textContent = '';
+  }
+}
+
+document.getElementById('btn-sync-vocab').addEventListener('click', async function() {
+  const btn = this;
+  if (btn.disabled) return;
+  btn.disabled = true;
+  btn.textContent = '⏳ 同步中...';
+
+  try {
+    const resp = await fetch(getVocabUrl(), { cache: 'no-cache' });
+    if (!resp.ok) throw new Error('fetch failed');
+    const vocabList = await resp.json();
+    if (!Array.isArray(vocabList)) throw new Error('格式错误');
+
+    let added = 0, skipped = 0;
+    for (const item of vocabList) {
+      if (!item.word) continue;
+      const existing = await getCard(item.word.toLowerCase());
+      if (existing) { skipped++; continue; }
+      await addCard({
+        word: item.word.toLowerCase(),
+        phonetic: item.phonetic || '',
+        pos: item.pos || '',
+        definition: item.definition || '',
+        example: item.example || '',
+        example_cn: item.example_cn || '',
+        mastered: false,
+        createdAt: Date.now(),
+        reviewCount: 0,
+        correctCount: 0,
+        lastReviewedAt: null
+      });
+      added++;
+    }
+    localStorage.setItem('lastVocabSync', String(Date.now()));
+    updateSyncTime();
+    alert(`新增 ${added} 个单词，跳过 ${skipped} 个已存在`);
+    renderLibrary();
+  } catch (e) {
+    alert('同步失败：暂无词汇数据或网络错误');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '📰 同步经济学人词汇';
+  }
+});
+
 // --- 词库页 ---
 const libraryList = document.getElementById('library-list');
 const libraryStats = document.getElementById('library-stats');
@@ -239,6 +303,7 @@ async function renderLibrary() {
   const mastered = all.filter(c => c.mastered).length;
   const pending = all.length - mastered;
   libraryStats.textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
+  updateSyncTime();
 
   if (all.length === 0) {
     libraryList.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>词库为空</p></div>';
@@ -256,7 +321,7 @@ async function renderLibrary() {
       </div>
       <div class="lib-detail" style="display:none;">
         <p>${c.phonetic || ''} ${c.pos || ''} <button class="btn-speak btn-speak-lib">🔊</button></p>
-        <p>${c.example || ''}</p>
+        <p>${c.example || ''}${c.example ? ' <button class="btn-speak-inline btn-speak-example">🔊</button>' : ''}</p>
         <p class="text-muted">${c.example_cn || ''}</p>
         <div class="lib-actions">
           <button class="btn btn-sm btn-toggle">${c.mastered ? '标为待复习' : '标为已掌握'}</button>
@@ -275,6 +340,11 @@ async function renderLibrary() {
       e.stopPropagation();
       speak(word);
     };
+    const exBtn = item.querySelector('.btn-speak-example');
+    if (exBtn) {
+      const card = all.find(c => c.word === word);
+      exBtn.onclick = (e) => { e.stopPropagation(); speak(card.example); };
+    }
     item.querySelector('.btn-toggle').onclick = async (e) => {
       e.stopPropagation();
       const card = await getCard(word);

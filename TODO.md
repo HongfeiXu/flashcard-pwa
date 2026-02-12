@@ -23,6 +23,15 @@
 - [x] 动画 & UI 打磨（fade-in、touch feedback、spinner）
 - **验收：** 可装桌面、离线复习、发音、体验流畅
 
+## 第 2.5 阶段：经济学人词汇联动
+- [x] 词库页「📰 同步经济学人词汇」按钮 + loading + 上次同步时间
+- [x] 从 GitHub Pages 拉取 vocab.json，逐条去重导入 IndexedDB
+- [x] 复习页/词库页例句 🔊 朗读按钮
+- [x] SW vocab.json Network First 策略，CACHE_VERSION → v2
+- [ ] 经济学人 cron prompt 增加例句中文翻译字段
+- [ ] 每篇文章生成时同时输出 vocab JSON
+- **验收：** 每天经济学人文章的词汇自动进入闪卡词库
+
 ## 第三阶段：健壮性
 - [ ] 错误处理完善
 - [ ] CORS 问题处理（如需 Cloudflare Workers 代理）

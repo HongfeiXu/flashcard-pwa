@@ -299,3 +299,37 @@ body {
   vertical-align: middle;
 }
 .btn-speak-lib:active { transform: scale(0.9); }
+
+/* Sync bar */
+.sync-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+.btn-sync {
+  border: none;
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: #f0f4ff;
+  color: var(--primary);
+  transition: transform .1s, opacity .1s;
+}
+.btn-sync:active { transform: scale(0.95); }
+.btn-sync:disabled { opacity: 0.5; cursor: not-allowed; }
+.sync-time { font-size: 11px; color: var(--text-muted); }
+
+/* Inline speak button (example sentences) */
+.btn-speak-inline {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  vertical-align: middle;
+}
+.btn-speak-inline:active { transform: scale(0.9); }

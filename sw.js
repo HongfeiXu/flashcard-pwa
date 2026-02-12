@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE_NAME = `flashcard-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   './',
@@ -38,6 +38,20 @@ self.addEventListener('fetch', event => {
   if (url.hostname.includes('minimaxi.com') ||
       url.hostname.includes('workers.dev') ||
       url.pathname.startsWith('/api')) {
+    return;
+  }
+
+  // vocab.json: Network First
+  if (url.pathname.endsWith('/vocab.json')) {
+    event.respondWith(
+      fetch(event.request).then(response => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        }
+        return response;
+      }).catch(() => caches.match(event.request))
+    );
     return;
   }
 
