@@ -23,6 +23,9 @@ function parseAIResponse(data) {
   text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
   // 移除可能的 <think>...</think> 标签（某些模型会返回）
   text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  // 替换中文引号为英文引号（AI 有时会返回中文引号导致 JSON 解析失败）
+  text = text.replace(/\u201c/g, '"').replace(/\u201d/g, '"');
+  text = text.replace(/\u2018/g, "'").replace(/\u2019/g, "'");
   // 尝试提取 JSON 对象（找第一个 { 到最后一个 }）
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
@@ -85,6 +88,7 @@ async function generateCard(word) {
     }
 
     const data = await res.json();
+    console.log('API raw response:', JSON.stringify(data, null, 2));
     return parseAIResponse(data);
   } catch (err) {
     clearTimeout(timeoutId);

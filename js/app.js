@@ -129,9 +129,14 @@ const addBtn = document.getElementById('add-btn');
 const addResult = document.getElementById('add-result');
 let isGenerating = false;
 
+let previewWord = null; // 当前预览区的单词
+
 async function handleAdd() {
   const word = addInput.value.trim().toLowerCase();
   if (!word || isGenerating) return;
+
+  // 预览区已经有这个单词的卡片了，不重复调用
+  if (previewWord === word && addResult.querySelector('#btn-save')) return;
 
   if (!getApiKey()) {
     addResult.innerHTML = '<div class="error-msg">请先在设置中输入 API Key</div>';
@@ -175,10 +180,12 @@ async function handleAdd() {
       </div>
       <button class="btn btn-primary" id="btn-save">保存到词库</button>`;
 
+    previewWord = word;
     // 预览阶段：保持按钮禁用，防止重复调用浪费 API
     document.getElementById('btn-save').onclick = async () => {
       try {
         await addCard(card);
+        previewWord = null;
         addResult.innerHTML = '<div class="success-msg">✅ 已保存！</div>';
         addInput.value = '';
         addInput.focus();
