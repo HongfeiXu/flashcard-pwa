@@ -4,6 +4,11 @@ import { getAllCards, getCard, addCard, putCard, deleteCard } from './db.js';
 import { generateCard, getApiKey, getCachedCard, setCachedCard } from './api.js';
 import { speak } from './tts.js';
 
+// --- SW 注册 ---
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
 // --- Tab 切换 ---
 const tabs = document.querySelectorAll('.tab-btn');
 const pages = document.querySelectorAll('.page');
@@ -72,7 +77,7 @@ function showCard() {
 
   reviewArea.innerHTML = `
     <div class="progress-text">${reviewStats.total - reviewQueue.length + 1} / ${reviewStats.total}</div>
-    <div class="card-container" id="card-flip">
+    <div class="card-container fade-in" id="card-flip">
       <div class="card">
         <div class="card-front">
           <div class="card-word">${currentCard.word}</div>
@@ -129,7 +134,7 @@ const addBtn = document.getElementById('add-btn');
 const addResult = document.getElementById('add-result');
 let isGenerating = false;
 
-let previewWord = null; // 当前预览区的单词
+let previewWord = null;
 
 function showPreview(word, data) {
   const card = {
@@ -178,7 +183,6 @@ async function handleAdd() {
   const word = addInput.value.trim().toLowerCase();
   if (!word || isGenerating) return;
 
-  // 预览区已经有这个单词的卡片了，不重复调用
   if (previewWord === word && addResult.querySelector('#btn-save')) return;
 
   if (!getApiKey()) {
@@ -192,7 +196,6 @@ async function handleAdd() {
     return;
   }
 
-  // 检查 LRU 缓存
   const cached = getCachedCard(word);
   if (cached) {
     showPreview(word, cached);
@@ -219,11 +222,9 @@ async function handleAdd() {
 
 addBtn.addEventListener('click', handleAdd);
 addInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAdd(); });
-// 输入内容变化时，如果处于预览未保存状态，解锁生成按钮
 addInput.addEventListener('input', () => {
-  if (isGenerating && !addBtn.disabled) return; // 正在调 API，不干扰
+  if (isGenerating && !addBtn.disabled) return;
   if (addBtn.disabled && addResult.querySelector('#btn-save')) {
-    // 预览阶段 + 用户改了输入 → 解锁
     isGenerating = false;
     addBtn.disabled = false;
   }
@@ -254,7 +255,7 @@ async function renderLibrary() {
         <span class="lib-badge ${c.mastered ? 'badge-mastered' : 'badge-pending'}">${c.mastered ? '已掌握' : '待复习'}</span>
       </div>
       <div class="lib-detail" style="display:none;">
-        <p>${c.phonetic || ''} ${c.pos || ''}</p>
+        <p>${c.phonetic || ''} ${c.pos || ''} <button class="btn-speak btn-speak-lib">🔊</button></p>
         <p>${c.example || ''}</p>
         <p class="text-muted">${c.example_cn || ''}</p>
         <div class="lib-actions">
@@ -269,6 +270,10 @@ async function renderLibrary() {
     const detail = item.querySelector('.lib-detail');
     item.querySelector('.lib-row').onclick = () => {
       detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+    };
+    item.querySelector('.btn-speak-lib').onclick = (e) => {
+      e.stopPropagation();
+      speak(word);
     };
     item.querySelector('.btn-toggle').onclick = async (e) => {
       e.stopPropagation();
@@ -288,17 +293,27 @@ async function renderLibrary() {
 }
 
 // --- 设置页 ---
-document.getElementById('btn-settings').addEventListener('click', () => {
+document.getElementById('btn-settings').addEventListener('click', async () => {
   document.getElementById('page-library').classList.remove('active');
   document.getElementById('page-settings').classList.add('active');
   const keyInput = document.getElementById('settings-apikey');
   keyInput.value = localStorage.getItem('minimax_api_key') || '';
   document.getElementById('settings-model').value = localStorage.getItem('minimax_model') || 'MiniMax-M2.1-lightning';
+  // Load stats
+  await updateSettingsStats();
 });
+
+async function updateSettingsStats() {
+  const all = await getAllCards();
+  const mastered = all.filter(c => c.mastered).length;
+  const pending = all.length - mastered;
+  document.getElementById('settings-stats').textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
+}
 
 document.getElementById('btn-settings-back').addEventListener('click', () => {
   document.getElementById('page-settings').classList.remove('active');
   document.getElementById('page-library').classList.add('active');
+  renderLibrary();
 });
 
 document.getElementById('btn-save-settings').addEventListener('click', () => {
@@ -312,6 +327,70 @@ document.getElementById('btn-save-settings').addEventListener('click', () => {
 document.getElementById('toggle-key-vis').addEventListener('click', () => {
   const inp = document.getElementById('settings-apikey');
   inp.type = inp.type === 'password' ? 'text' : 'password';
+});
+
+// --- 导出词库 ---
+document.getElementById('btn-export').addEventListener('click', async () => {
+  const all = await getAllCards();
+  const json = JSON.stringify(all, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `flashcard-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// --- 导入词库 ---
+document.getElementById('btn-import').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const text = await file.text();
+    const cards = JSON.parse(text);
+    if (!Array.isArray(cards)) throw new Error('格式错误：期望数组');
+    let imported = 0, skipped = 0;
+    for (const card of cards) {
+      if (!card.word) continue;
+      const existing = await getCard(card.word);
+      if (existing) { skipped++; continue; }
+      await addCard({
+        word: card.word,
+        phonetic: card.phonetic || '',
+        pos: card.pos || '',
+        definition: card.definition || '',
+        example: card.example || '',
+        example_cn: card.example_cn || '',
+        mastered: card.mastered || false,
+        createdAt: card.createdAt || Date.now(),
+        reviewCount: card.reviewCount || 0,
+        correctCount: card.correctCount || 0,
+        lastReviewedAt: card.lastReviewedAt || null
+      });
+      imported++;
+    }
+    alert(`导入完成！新增 ${imported} 个，跳过 ${skipped} 个已存在的单词。`);
+    await updateSettingsStats();
+  } catch (err) {
+    alert('导入失败：' + err.message);
+  }
+  e.target.value = '';
+});
+
+// --- 清空所有数据 ---
+document.getElementById('btn-clear-all').addEventListener('click', async () => {
+  if (!confirm('确定要清空所有数据吗？此操作不可恢复！')) return;
+  if (!confirm('再次确认：这将删除所有单词和设置，确定继续？')) return;
+  const all = await getAllCards();
+  for (const card of all) {
+    await deleteCard(card.word);
+  }
+  localStorage.removeItem('minimax_api_key');
+  localStorage.removeItem('minimax_model');
+  localStorage.removeItem('card_cache');
+  alert('所有数据已清空');
+  await updateSettingsStats();
 });
 
 // --- 初始化 ---
