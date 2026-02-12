@@ -6,6 +6,7 @@ const API_BASE = 'https://api.minimaxi.com';
 // 允许的源（GitHub Pages + 本地开发）
 const ALLOWED_ORIGINS = [
   'https://hongfeixu.github.io',
+  'https://HongfeiXu.github.io',
   'http://localhost:8080',
   'http://192.168.3.200:8080',
 ];

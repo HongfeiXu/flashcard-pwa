@@ -4,7 +4,7 @@
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname.startsWith('192.168.');
 const PROXY_BASE = IS_LOCAL
   ? '/api'  // 本地 proxy.py
-  : 'https://flashcard-api-proxy.hongfeixu.workers.dev';  // Cloudflare Workers
+  : 'https://flashcard-api-proxy.icevmj.workers.dev';  // Cloudflare Workers
 const API_URL = PROXY_BASE + '/anthropic/v1/messages';
 
 function getApiKey() {
