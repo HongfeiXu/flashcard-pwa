@@ -64,6 +64,22 @@ const response = await fetch('https://api.minimaxi.com/anthropic/v1/messages', {
 const data = await response.json();
 ```
 
+### API 调用保护
+
+- 请求超时：设置 30 秒 AbortController timeout，避免 API 卡住无响应
+- 防重复点击：生成过程中禁用按钮，避免用户连续点击产生多次请求
+
+```javascript
+const controller = new AbortController();
+const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+const response = await fetch(url, {
+  ...options,
+  signal: controller.signal
+});
+clearTimeout(timeoutId);
+```
+
 ### 重要：解析 Anthropic 格式响应
 
 Anthropic 格式的响应中，content 是一个数组，包含多种类型的 block。MiniMax M2.1 是推理模型，会返回 thinking block 和 text block。**只需要提取 type=text 的 block**：
@@ -174,7 +190,9 @@ Anthropic 格式的好处是 thinking 内容天然与正文分离，不需要手
   example_cn: "智能手机在现代生活中已变得无处不在。",
   mastered: false,             // 是否已掌握
   createdAt: 1707700000000,    // 添加时间（时间戳）
-  reviewCount: 0               // 被标记"不认识"的次数
+  reviewCount: 0,              // 被标记"不认识"的次数
+  correctCount: 0,             // 被标记"认识"的次数（统计用）
+  lastReviewedAt: null         // 最后复习时间（为未来间隔重复算法预留）
 }
 ```
 
@@ -202,6 +220,8 @@ Anthropic 格式的好处是 thinking 内容天然与正文分离，不需要手
 - 正面：单词居中，大字号（32px+），下方小喇叭图标
 - 背面：左对齐排列，音标（灰色）、词性+释义、例句、例句翻译
 - 3D 翻转：用 CSS `perspective` + `transform: rotateY(180deg)` + `backface-visibility: hidden`
+- 翻转动画建议使用 `cubic-bezier(0.4, 0, 0.2, 1)` 缓动函数，比 `ease-in-out` 更流畅
+- `transform-style: preserve-3d` 确保 3D 效果正确
 
 ### 按钮
 
@@ -209,6 +229,7 @@ Anthropic 格式的好处是 thinking 内容天然与正文分离，不需要手
 - "不认识" 按钮：红色/橙色背景
 - 两个按钮并排，等宽，间距 12px
 - 圆角、适当的 padding、触摸友好（min-height 48px）
+- 所有可点击元素添加触摸反馈：`:active { transform: scale(0.95); opacity: 0.8; }`
 
 ---
 
@@ -222,8 +243,11 @@ Anthropic 格式的好处是 thinking 内容天然与正文分离，不需要手
   "short_name": "闪卡",
   "start_url": "./index.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#ffffff",
   "theme_color": "#4A90D9",
+  "description": "简洁高效的英语单词闪卡应用",
+  "categories": ["education", "productivity"],
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" }
@@ -236,6 +260,23 @@ Anthropic 格式的好处是 thinking 内容天然与正文分离，不需要手
 - 缓存静态资源（html, css, js, icons）— Cache First 策略
 - API 请求（api.minimaxi.com）— Network Only，不缓存
 - 离线时复习页正常工作（数据在 IndexedDB 中）
+- 使用版本号管理缓存，更新时自动清除旧缓存：
+
+```javascript
+const CACHE_VERSION = 'v1';
+const CACHE_NAME = `flashcard-${CACHE_VERSION}`;
+
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.filter(key => key !== CACHE_NAME)
+            .map(key => caches.delete(key))
+      )
+    )
+  );
+});
+```
 
 ### 图标
 
@@ -266,9 +307,33 @@ flashcard-pwa/
 
 ## 注意事项
 
-1. **CORS**：MiniMax API 可能限制浏览器直接跨域请求。如果遇到 CORS 错误，在设置页显示明确的提示信息，告知用户需要后续添加代理。不要默默失败。
+1. **CORS**：MiniMax API 可能限制浏览器直接跨域请求。如果遇到 CORS 错误，在设置页显示明确的提示信息，告知用户需要后续添加代理。不要默默失败。如果 CORS 不通，备选方案是写一个 Cloudflare Workers 代理（免费额度每天 10 万次请求，几行代码即可）。
 2. **JSON 解析容错**：AI 返回内容务必做清洗（去 think 标签、去 markdown 标记），然后 try-catch 解析。解析失败时让用户重试。
 3. **单页应用路由**：不需要用 history API，直接用 JS 控制 DOM 显示/隐藏不同页面 section 即可，tab 切换时加 class。
 4. **API Key 不硬编码**：代码中不出现任何 API Key，全部从 localStorage 读取。
 5. **iOS Safari 兼容**：测试 `position: fixed` 底部导航栏在 iOS Safari 的表现，注意键盘弹出时的布局问题。添加页的输入框获得焦点时，确保不被键盘遮挡。
 6. **导出/导入**：导出就是把 IndexedDB 所有记录 dump 成 JSON 下载。导入时逐条写入，已存在的单词跳过不覆盖。
+7. **IndexedDB 不可用**：部分浏览器隐私模式可能禁用 IndexedDB，打开数据库失败时应显示友好提示，引导用户使用正常模式。
+8. **加载状态**：添加页调用 API 时显示骨架屏或 spinner 动画，避免用户以为卡住了。
+
+---
+
+## 开发阶段规划
+
+### 第一阶段（MVP，跑通核心）
+1. 基础框架 + Tab 导航 + 页面切换
+2. IndexedDB 封装（CRUD）
+3. 添加页 + MiniMax API 调用（先测 CORS）
+4. 复习页核心功能（翻转 + 认识/不认识）
+5. 词库页列表展示
+
+### 第二阶段（完善体验）
+6. PWA 配置（Service Worker + manifest + 图标）
+7. 设置页 + 导入导出
+8. TTS 发音
+9. UI 细节打磨 + 动画效果
+
+### 第三阶段（优化健壮性）
+10. 错误处理完善（网络异常、API 失败、存储满等）
+11. 如遇 CORS 问题，添加 Cloudflare Workers 代理
+12. iOS Safari 兼容性测试和修复
