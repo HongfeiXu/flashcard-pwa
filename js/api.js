@@ -19,8 +19,28 @@ function parseAIResponse(data) {
   const textBlock = data.content.find(b => b.type === 'text');
   if (!textBlock) throw new Error('No text content in response');
   let text = textBlock.text.trim();
+  // 清理各种 AI 可能返回的包裹格式
   text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  return JSON.parse(text);
+  // 移除可能的 <think>...</think> 标签（某些模型会返回）
+  text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+  // 尝试提取 JSON 对象（找第一个 { 到最后一个 }）
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start !== -1 && end > start) {
+    text = text.slice(start, end + 1);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    // 尝试修复常见问题：尾部多余逗号
+    const fixed = text.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
+    try {
+      return JSON.parse(fixed);
+    } catch (e2) {
+      console.error('AI response parse failed:', text);
+      throw new Error('AI 返回格式异常，请重试');
+    }
+  }
 }
 
 async function generateCard(word) {
