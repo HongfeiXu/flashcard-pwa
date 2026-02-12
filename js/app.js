@@ -175,6 +175,7 @@ async function handleAdd() {
       </div>
       <button class="btn btn-primary" id="btn-save">保存到词库</button>`;
 
+    // 预览阶段：保持按钮禁用，防止重复调用浪费 API
     document.getElementById('btn-save').onclick = async () => {
       try {
         await addCard(card);
@@ -183,14 +184,16 @@ async function handleAdd() {
         addInput.focus();
       } catch (e) {
         addResult.innerHTML = '<div class="error-msg">保存失败：' + e.message + '</div>';
+      } finally {
+        isGenerating = false;
+        addBtn.disabled = false;
       }
     };
   } catch (err) {
     const msg = err.message === 'NO_API_KEY' ? '请先在设置中输入 API Key' : err.message;
     addResult.innerHTML = `<div class="error-msg">${msg}</div><button class="btn btn-primary" id="btn-retry">重试</button>`;
     const retryBtn = document.getElementById('btn-retry');
-    if (retryBtn) retryBtn.onclick = handleAdd;
-  } finally {
+    if (retryBtn) retryBtn.onclick = () => { isGenerating = false; addBtn.disabled = false; handleAdd(); };
     isGenerating = false;
     addBtn.disabled = false;
   }
