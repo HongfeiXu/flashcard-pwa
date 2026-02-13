@@ -1,5 +1,11 @@
 # 功能路线图
 
+> **相关文档**:
+> - [CHANGELOG](../../CHANGELOG.md) — 技术变更历史
+> - [代码审查修复](../development/code-review-fixes.md) — 质量改进记录
+
+---
+
 ## ✅ 已完成
 
 ### Phase 1: MVP 核心

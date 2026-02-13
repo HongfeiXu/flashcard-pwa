@@ -25,41 +25,23 @@
 
 ## 技术栈
 
-- 纯 HTML + CSS + JavaScript（无框架）
-- IndexedDB 本地持久化
-- MiniMax AI API（Anthropic 兼容格式）
-- Cloudflare Workers（API CORS 代理）
-- GitHub Pages（静态托管）
-- AES-256-GCM 词汇加密（防 GitHub 明文敏感内容）
+纯前端 PWA，零框架，使用 IndexedDB + Service Worker + MiniMax AI API。
+
+📖 详细技术选型见 [技术栈文档](docs/architecture/tech-stack.md)
 
 ## 项目结构
 
 ```
 flashcard-pwa/
-├── src/                    # 源代码
-│   ├── index.html         # 主入口
-│   ├── manifest.json      # PWA 配置
-│   ├── sw.js             # Service Worker
-│   ├── css/style.css     # 样式
-│   └── js/               # 业务逻辑
-│       ├── app.js        # 主逻辑（UI、Tab、复习、词库）
-│       ├── api.js        # MiniMax API + 词汇解密
-│       ├── db.js         # IndexedDB CRUD
-│       └── tts.js        # TTS 发音封装
-├── docs/                  # 技术文档
-│   ├── SPEC.md           # 完整功能规格
-│   └── CRYPTO.md        # 词汇加密方案
-├── scripts/              # 工具脚本
-│   ├── encrypt-vocab.js  # 加密 vocab.json → vocab.enc
-│   ├── extract-vocab.py  # 从 economist outputs 提取词汇
-│   └── bump-sw.sh       # 自动更新 SW 版本
-├── worker/               # Cloudflare Workers
-│   └── index.js          # API CORS 代理
-├── data/                 # 数据文件
-│   ├── vocab.json        # 明文源文件（本地保留，.gitignore）
-│   └── vocab.enc         # 加密后文件（git 追踪）
-└── CHANGELOG.md         # 开发变更日志
+├── index.html, manifest.json, sw.js    # PWA 核心
+├── css/, js/                           # 样式 + 业务逻辑
+├── docs/                               # 📚 技术文档（见下方）
+├── scripts/                            # 🔧 工具脚本
+├── worker/                             # ☁️ Cloudflare Workers
+└── vocab.enc                           # 🔐 加密词汇库
 ```
+
+完整结构说明见 [本地开发环境](docs/development/setup.md#目录结构)
 
 ## 📚 文档导航
 
