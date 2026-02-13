@@ -103,6 +103,7 @@ let reviewQueue = [];
 let reviewStats = { total: 0, known: 0, unknown: 0 };
 let currentCard = null;
 let isFlipped = false;
+let reviewActive = false; // 是否有进行中的复习，避免切 tab 时重置进度
 
 const reviewArea = document.getElementById('review-area');
 
@@ -114,11 +115,15 @@ function shuffle(arr) {
   return arr;
 }
 
-async function initReview() {
+async function initReview(force = false) {
+  // 有进行中的复习 → 跳过重置（除非强制刷新）
+  if (reviewActive && !force) return;
+
   try {
     const all = await getAllCards();
     const pending = all.filter(c => !c.mastered);
     if (pending.length === 0) {
+      reviewActive = false;
       reviewArea.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📭</div>
@@ -129,14 +134,17 @@ async function initReview() {
     }
     reviewQueue = shuffle([...pending]);
     reviewStats = { total: reviewQueue.length, known: 0, unknown: 0 };
+    reviewActive = true;
     showCard();
   } catch (err) {
+    reviewActive = false;
     reviewArea.innerHTML = `<div class="error-msg">${esc(friendlyError(err))}</div>`;
   }
 }
 
 function showCard() {
   if (reviewQueue.length === 0) {
+    reviewActive = false;
     reviewArea.innerHTML = `
       <div class="review-done">
         <div class="done-icon">🎉</div>
@@ -148,7 +156,7 @@ function showCard() {
         </div>
         <button class="btn btn-primary" id="btn-again">再来一轮</button>
       </div>`;
-    document.getElementById('btn-again').onclick = initReview;
+    document.getElementById('btn-again').onclick = () => initReview(true);
     return;
   }
 
