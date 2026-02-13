@@ -141,6 +141,7 @@ function showCard() {
           <button class="btn-speak" id="btn-tts">🔊</button>
         </div>
         <div class="card-back">
+          <div class="card-back-word">${esc(currentCard.word)} <button class="btn-speak-inline" id="btn-tts-word-back">🔊</button></div>
           <div class="card-phonetic">${esc(currentCard.phonetic)}</div>
           <div class="card-pos">${esc(currentCard.pos)}</div>
           <div class="card-def">${esc(currentCard.definition)}</div>
@@ -155,14 +156,20 @@ function showCard() {
     </div>`;
 
   document.getElementById('card-flip').onclick = () => {
+    const el = document.getElementById('card-flip');
     if (!isFlipped) {
-      document.getElementById('card-flip').classList.add('flipped');
+      el.classList.add('flipped');
       document.getElementById('review-actions').style.display = 'flex';
       isFlipped = true;
+    } else {
+      el.classList.remove('flipped');
+      document.getElementById('review-actions').style.display = 'none';
+      isFlipped = false;
     }
   };
 
   document.getElementById('btn-tts').onclick = (e) => { e.stopPropagation(); speak(currentCard.word); };
+  document.getElementById('btn-tts-word-back').onclick = (e) => { e.stopPropagation(); speak(currentCard.word); };
   const ttsExample = document.getElementById('btn-tts-example');
   if (ttsExample) ttsExample.onclick = (e) => { e.stopPropagation(); speak(currentCard.example); };
 
@@ -229,11 +236,11 @@ function showPreview(word, data) {
 
   addResult.innerHTML = `
     <div class="preview-card">
-      <div class="preview-word">${esc(card.word)}</div>
+      <div class="preview-word">${esc(card.word)} <button class="btn-speak-inline" id="btn-preview-tts-word">🔊</button></div>
       <div class="preview-phonetic">${esc(card.phonetic)}</div>
       <div class="preview-pos">${esc(card.pos)}</div>
       <div class="preview-def">${esc(card.definition)}</div>
-      <div class="preview-example">${esc(card.example)}</div>
+      <div class="preview-example">${esc(card.example)}${card.example ? ' <button class="btn-speak-inline" id="btn-preview-tts-example">🔊</button>' : ''}</div>
       <div class="preview-example-cn">${esc(card.example_cn)}</div>
     </div>
     <button class="btn btn-primary" id="btn-save">保存到词库</button>`;
@@ -241,6 +248,10 @@ function showPreview(word, data) {
   previewWord = word;
   isGenerating = false;
   addBtn.disabled = false;
+
+  document.getElementById('btn-preview-tts-word').onclick = () => speak(card.word);
+  const previewExBtn = document.getElementById('btn-preview-tts-example');
+  if (previewExBtn) previewExBtn.onclick = () => speak(card.example);
 
   document.getElementById('btn-save').onclick = async () => {
     try {

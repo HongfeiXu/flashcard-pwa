@@ -103,6 +103,7 @@ body {
 }
 
 .card-word { font-size: 36px; font-weight: 700; margin-bottom: 16px; }
+.card-back-word { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
 .card-phonetic { color: var(--text-muted); font-size: 18px; }
 .card-pos { color: var(--primary); font-weight: 600; font-size: 15px; }
 .card-def { font-size: 20px; font-weight: 600; }
