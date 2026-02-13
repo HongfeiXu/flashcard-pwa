@@ -61,8 +61,22 @@ flashcard-pwa/
 └── CHANGELOG.md         # 开发变更日志
 ```
 
-## 相关文档
+## 📚 文档导航
 
-- [完整规格](docs/SPEC.md)
-- [词汇加密方案](docs/CRYPTO.md)
-- [开发变更日志](CHANGELOG.md)
+### 新手入门
+- [功能规格说明](docs/specs/features.md) — 完整功能介绍
+- [本地开发环境](docs/development/setup.md) — 如何在本地运行
+- [部署指南](docs/development/deployment.md) — GitHub Pages + Workers 部署
+
+### 技术架构
+- [技术栈选型](docs/architecture/tech-stack.md) — 为什么用这些技术
+- [数据流设计](docs/architecture/data-flow.md) — 数据如何流转
+- [词汇加密方案](docs/architecture/encryption.md) — AES-256-GCM 加密原理
+
+### 开发参考
+- [踩坑经验](docs/development/lessons-learned.md) — 常见问题解决方案
+- [代码审查修复](docs/development/code-review-fixes.md) — 质量改进记录
+- [功能路线图](docs/planning/roadmap.md) — 未来计划
+
+### 变更日志
+- [CHANGELOG](CHANGELOG.md) — 版本历史

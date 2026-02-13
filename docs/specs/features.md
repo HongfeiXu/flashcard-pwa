@@ -1,4 +1,11 @@
-# SPEC: 单词闪卡 PWA
+# 功能规格说明
+
+> 本文档是完整的功能规格参考。更详细的技术文档请查看：
+> - [技术栈选型](../architecture/tech-stack.md)
+> - [数据流设计](../architecture/data-flow.md)
+> - [词汇加密方案](../architecture/encryption.md)
+> - [本地开发环境](../development/setup.md)
+> - [部署指南](../development/deployment.md)
 
 ## 项目概述
 
