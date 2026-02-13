@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>Test Decrypt</title></head>
+<body>
+<h1>测试 vocab.enc 解密</h1>
+<button id="test">测试解密</button>
+<pre id="result"></pre>
+<script>
+const VOCAB_KEY_HEX = 'a3f1b2c4d5e6f708192a3b4c5d6e7f80a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+async function decryptVocab(base64Data) {
+  const raw = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  const iv = raw.slice(0, 12);
+  const ciphertext = raw.slice(12);
+  const keyBuf = new Uint8Array(VOCAB_KEY_HEX.match(/.{2}/g).map(h => parseInt(h, 16)));
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBuf, 'AES-GCM', false, ['decrypt']);
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+  return JSON.parse(new TextDecoder().decode(decrypted));
+}
+
+document.getElementById('test').onclick = async () => {
+  const result = document.getElementById('result');
+  try {
+    result.textContent = '正在 fetch vocab.enc...';
+    const resp = await fetch('/vocab.enc');
+    if (!resp.ok) throw new Error('fetch failed: ' + resp.status);
+    
+    result.textContent = '正在读取内容...';
+    const raw = await resp.text();
+    result.textContent = `读取成功，长度: ${raw.length}\n开头: ${raw.slice(0, 100)}...\n\n正在解密...`;
+    
+    const vocabList = await decryptVocab(raw);
+    result.textContent = `✅ 解密成功！\n词汇数: ${vocabList.length}\n首词: ${vocabList[0].word}\n\n完整数据:\n${JSON.stringify(vocabList.slice(0, 3), null, 2)}`;
+  } catch (e) {
+    result.textContent = `❌ 失败:\n${e.stack || e.message}`;
+  }
+};
+</script>
+</body>
+</html>
