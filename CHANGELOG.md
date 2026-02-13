@@ -1,4 +1,32 @@
-# 单词闪卡 PWA - 开发进度
+# CHANGELOG - 单词闪卡 PWA 开发变更日志
+
+## 项目结构重整 ✅ (2026-02-13)
+
+```
+flashcard-pwa/
+├── src/                    # 源代码
+│   ├── index.html         # 主入口
+│   ├── manifest.json      # PWA 配置
+│   ├── sw.js             # Service Worker
+│   ├── css/style.css     # 样式
+│   └── js/               # 业务逻辑
+│       ├── app.js        # 主逻辑
+│       ├── api.js        # API + 解密
+│       ├── db.js         # IndexedDB
+│       └── tts.js        # 发音
+├── docs/                  # 技术文档
+│   ├── SPEC.md           # 完整规格
+│   └── CRYPTO.md        # 词汇加密方案
+├── scripts/              # 工具脚本
+│   ├── encrypt-vocab.js  # 加密工具
+│   ├── extract-vocab.py  # 词汇提取
+│   └── bump-sw.sh       # SW 版本更新
+├── worker/               # Cloudflare Workers
+├── data/                 # 数据文件
+│   ├── vocab.json        # 明文（本地）
+│   └── vocab.enc         # 密文（git）
+└── CHANGELOG.md         # 变更日志
+```
 
 ## 第一阶段：MVP 核心 ✅ (2026-02-12)
 - [x] 基础框架 + Tab 导航 + 页面切换
@@ -28,6 +56,21 @@
 - [x] 从 GitHub Pages 拉取 vocab.json，逐条去重导入 IndexedDB
 - [x] 复习页/词库页例句 🔊 朗读按钮
 - [x] SW vocab.json Network First 策略，CACHE_VERSION → v2
+- [x] Cron 追加词汇 → git push，自动同步到 PWA
+
+### 词汇同步流程
+```
+经济学人 cron（每天 12:00）
+  → 生成文章 + 提取 10 个词汇（含 example_cn）
+  → 追加到 vocab.json
+  → vocab.json → vocab.enc（加密）
+  → git add vocab.enc → push
+
+用户点击「📰 同步经济学人词汇」
+  → fetch vocab.enc → Web Crypto 解密
+  → 逐条去重导入 IndexedDB
+  → toast 显示"新增 X 个，跳过 Y 个"
+```
 - [x] 经济学人 cron prompt 增加例句中文翻译字段
 - [x] 每篇文章生成时同时输出 vocab JSON + git push
 - [x] 历史 20 词汇补翻译
