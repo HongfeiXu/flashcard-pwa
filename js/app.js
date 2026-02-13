@@ -208,17 +208,21 @@ function showCard() {
     const clickX = e.clientX - rect.left;
     const isRightSide = clickX > rect.width / 2;
     
+    // 检查是否需要归一化（在累加之前）
+    if (Math.abs(currentRotation) >= 360) {
+      card.style.transition = 'none';
+      currentRotation = currentRotation > 0 ? currentRotation - 360 : currentRotation + 360;
+      card.style.transform = `rotateY(${currentRotation}deg)`;
+      void card.offsetWidth; // 强制重绘
+      card.style.transition = '';
+      console.log(`[Flip] Reset angle to ${currentRotation}`);
+    }
+    
     // 方向感统一：点右边始终顺时针（+180），点左边始终逆时针（-180）
     const delta = isRightSide ? 180 : -180;
     currentRotation += delta;
-    
-    // 规范化角度到 -360 ~ 360 范围，防止累加过大导致 CSS transition 异常
-    // 使用 720 的模运算（完整的正反面循环）
-    currentRotation = ((currentRotation % 720) + 720) % 720;
-    if (currentRotation > 360) currentRotation -= 720;
-    
     card.style.transform = `rotateY(${currentRotation}deg)`;
-    console.log(`[Flip] Side: ${isRightSide ? 'RIGHT' : 'LEFT'}, Delta: ${delta}, Rotation: ${currentRotation}`);
+    console.log(`[Flip] Side: ${isRightSide ? 'RIGHT' : 'LEFT'}, Delta: ${delta}, New rotation: ${currentRotation}`);
     
     if (!isFlipped) {
       document.getElementById('review-actions').style.display = 'flex';
