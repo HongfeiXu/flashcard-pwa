@@ -158,4 +158,19 @@ function setCachedCard(word, data) {
   saveCache(cache);
 }
 
-export { generateCard, getApiKey, getCachedCard, setCachedCard };
+// --- vocab.enc 解密 (AES-256-GCM, Web Crypto API) ---
+const VOCAB_KEY_HEX = 'a3f1b2c4d5e6f708192a3b4c5d6e7f80a1b2c3d4e5f60718293a4b5c6d7e8f90';
+
+async function decryptVocab(base64Data) {
+  const raw = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+  // 格式：iv(12) + ciphertext + authTag(16)
+  const iv = raw.slice(0, 12);
+  const ciphertext = raw.slice(12);
+  // Web Crypto 的 AES-GCM decrypt 期望 ciphertext 尾部包含 authTag
+  const keyBuf = new Uint8Array(VOCAB_KEY_HEX.match(/.{2}/g).map(h => parseInt(h, 16)));
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBuf, 'AES-GCM', false, ['decrypt']);
+  const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, cryptoKey, ciphertext);
+  return JSON.parse(new TextDecoder().decode(decrypted));
+}
+
+export { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab };

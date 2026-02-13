@@ -1,7 +1,7 @@
 // app.js - 主逻辑
 
 import { getAllCards, getCard, addCard, putCard, deleteCard, clearAll, bulkImport } from './db.js';
-import { generateCard, getApiKey, getCachedCard, setCachedCard } from './api.js';
+import { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab } from './api.js';
 import { speak } from './tts.js';
 
 // --- HTML 转义，防止 XSS（正则版，避免重复创建 DOM 元素）---
@@ -373,8 +373,8 @@ addInput.addEventListener('input', () => {
 // --- 经济学人词汇同步 ---
 function getVocabUrl() {
   const h = location.hostname;
-  if (h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.')) return '/vocab.json';
-  return 'https://hongfeixu.github.io/flashcard-pwa/vocab.json';
+  if (h === 'localhost' || h === '127.0.0.1' || h.startsWith('192.168.')) return '/vocab.enc';
+  return 'https://hongfeixu.github.io/flashcard-pwa/vocab.enc';
 }
 
 function updateSyncTime() {
@@ -407,7 +407,8 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
     }
     let vocabList;
     try {
-      vocabList = await resp.json();
+      const raw = await resp.text();
+      vocabList = await decryptVocab(raw);
     } catch (e) {
       throw new Error('PARSE');
     }
