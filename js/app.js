@@ -141,8 +141,8 @@ function showCard() {
           <button class="btn-speak" id="btn-tts">🔊</button>
         </div>
         <div class="card-back">
-          <div class="card-back-word">${esc(currentCard.word)} <button class="btn-speak-inline" id="btn-tts-word-back">🔊</button></div>
-          <div class="card-phonetic">${esc(currentCard.phonetic)}</div>
+          <div class="card-back-word">${esc(currentCard.word)}</div>
+          <div class="card-phonetic">${esc(currentCard.phonetic)} <button class="btn-speak-inline" id="btn-tts-word-back">🔊</button></div>
           <div class="card-pos">${esc(currentCard.pos)}</div>
           <div class="card-def">${esc(currentCard.definition)}</div>
           <div class="card-example">${esc(currentCard.example)}${currentCard.example ? ' <button class="btn-speak-inline" id="btn-tts-example">🔊</button>' : ''}</div>
@@ -236,8 +236,8 @@ function showPreview(word, data) {
 
   addResult.innerHTML = `
     <div class="preview-card">
-      <div class="preview-word">${esc(card.word)} <button class="btn-speak-inline" id="btn-preview-tts-word">🔊</button></div>
-      <div class="preview-phonetic">${esc(card.phonetic)}</div>
+      <div class="preview-word">${esc(card.word)}</div>
+      <div class="preview-phonetic">${esc(card.phonetic)} <button class="btn-speak-inline" id="btn-preview-tts-word">🔊</button></div>
       <div class="preview-pos">${esc(card.pos)}</div>
       <div class="preview-def">${esc(card.definition)}</div>
       <div class="preview-example">${esc(card.example)}${card.example ? ' <button class="btn-speak-inline" id="btn-preview-tts-example">🔊</button>' : ''}</div>
