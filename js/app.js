@@ -448,9 +448,22 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
   e.target.value = '';
 });
 
-// --- 清空所有数据 ---
+// --- 清空词库（保留设置）---
+document.getElementById('btn-clear-vocab').addEventListener('click', async () => {
+  if (!confirm('确定要清空词库吗？所有单词将被删除，但 API Key 和设置会保留。')) return;
+  const all = await getAllCards();
+  for (const card of all) {
+    await deleteCard(card.word);
+  }
+  localStorage.removeItem('card_cache');
+  localStorage.removeItem('lastVocabSync');
+  alert(`已清空 ${all.length} 个单词`);
+  await updateSettingsStats();
+});
+
+// --- 重置应用（含设置）---
 document.getElementById('btn-clear-all').addEventListener('click', async () => {
-  if (!confirm('确定要清空所有数据吗？此操作不可恢复！')) return;
+  if (!confirm('确定要重置应用吗？所有数据（含 API Key）都将删除！')) return;
   if (!confirm('再次确认：这将删除所有单词和设置，确定继续？')) return;
   const all = await getAllCards();
   for (const card of all) {
@@ -459,6 +472,7 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
   localStorage.removeItem('minimax_api_key');
   localStorage.removeItem('minimax_model');
   localStorage.removeItem('card_cache');
+  localStorage.removeItem('lastVocabSync');
   alert('所有数据已清空');
   await updateSettingsStats();
 });
