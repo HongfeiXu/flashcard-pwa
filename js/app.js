@@ -194,7 +194,11 @@ function showCard() {
     </div>`;
 
   let currentRotation = 0;
+  let isFlipping = false;
+  
   document.getElementById('card-flip').onclick = (e) => {
+    if (isFlipping) return; // 动画期间忽略点击
+    
     const el = document.getElementById('card-flip');
     const card = el.querySelector('.card');
     const rect = el.getBoundingClientRect();
@@ -212,6 +216,10 @@ function showCard() {
       document.getElementById('review-actions').style.display = 'none';
       isFlipped = false;
     }
+    
+    // 锁定 500ms（与 CSS transition 时长一致）
+    isFlipping = true;
+    setTimeout(() => { isFlipping = false; }, 500);
   };
 
   document.getElementById('btn-tts').onclick = (e) => { e.stopPropagation(); speak(currentCard.word); };
