@@ -193,9 +193,13 @@ function showCard() {
       <button class="btn btn-success" id="btn-known">✅ 认识</button>
     </div>`;
 
-  document.getElementById('card-flip').onclick = () => {
+  document.getElementById('card-flip').onclick = (e) => {
     const el = document.getElementById('card-flip');
     if (!isFlipped) {
+      const rect = el.getBoundingClientRect();
+      const clickX = e.clientX - rect.left;
+      const direction = clickX < rect.width / 2 ? '-180deg' : '180deg';
+      el.style.setProperty('--flip-direction', direction);
       el.classList.add('flipped');
       document.getElementById('review-actions').style.display = 'flex';
       isFlipped = true;

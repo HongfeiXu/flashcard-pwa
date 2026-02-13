@@ -75,7 +75,7 @@ body {
   transform-style: preserve-3d;
   transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.card-container.flipped .card { transform: rotateY(180deg); }
+.card-container.flipped .card { transform: rotateY(var(--flip-direction, 180deg)); }
 
 .card-front, .card-back {
   position: absolute;
