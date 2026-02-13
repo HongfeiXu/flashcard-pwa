@@ -46,13 +46,13 @@ flashcard-pwa/
 ## 📚 文档导航
 
 ### 新手入门
-- [功能规格说明](docs/specs/features.md) — 完整功能介绍
 - [本地开发环境](docs/development/setup.md) — 如何在本地运行
 - [部署指南](docs/development/deployment.md) — GitHub Pages + Workers 部署
 
 ### 技术架构
 - [技术栈选型](docs/architecture/tech-stack.md) — 为什么用这些技术
 - [数据流设计](docs/architecture/data-flow.md) — 数据如何流转
+- [MiniMax API 集成](docs/architecture/minimax-api.md) — API 调用示例与最佳实践
 - [词汇加密方案](docs/architecture/encryption.md) — AES-256-GCM 加密原理
 
 ### 开发参考

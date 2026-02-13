@@ -2,7 +2,7 @@
 
 > **相关文档**:
 > - [数据流设计](data-flow.md) — 了解各技术如何配合
-> - [功能规格](../specs/features.md) — MiniMax API 调用示例
+> - [MiniMax API 集成](minimax-api.md) — API 调用示例与最佳实践
 
 ---
 
