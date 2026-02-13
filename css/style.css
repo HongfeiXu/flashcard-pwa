@@ -365,3 +365,82 @@ body {
 @supports (padding-top: env(safe-area-inset-top)) {
   .page { padding-top: calc(20px + env(safe-area-inset-top, 0px)); }
 }
+
+/* --- Success toast --- */
+.global-toast.toast-success {
+  background: var(--success);
+}
+
+/* --- Custom confirm dialog (替代 confirm/alert) --- */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+  padding: 20px;
+}
+.confirm-dialog {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 24px;
+  max-width: 320px;
+  width: 100%;
+  animation: fadeIn 0.2s ease-out;
+}
+.confirm-msg {
+  font-size: 15px;
+  line-height: 1.6;
+  margin-bottom: 20px;
+  word-break: break-word;
+}
+.confirm-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.confirm-cancel {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid #ddd;
+}
+
+/* --- Update banner --- */
+.update-banner {
+  position: fixed;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px) + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(120%);
+  max-width: 400px;
+  width: calc(100% - 32px);
+  background: var(--primary);
+  color: #fff;
+  text-align: center;
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 200;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+  transition: transform 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+}
+.update-banner.show {
+  transform: translateX(-50%) translateY(0);
+}
+.update-banner button {
+  border: none;
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+#btn-update-reload { background: #fff; color: var(--primary); }
+#btn-update-dismiss { background: rgba(255,255,255,0.2); color: #fff; }

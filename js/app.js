@@ -4,27 +4,31 @@ import { getAllCards, getCard, addCard, putCard, deleteCard, clearAll, bulkImpor
 import { generateCard, getApiKey, getCachedCard, setCachedCard } from './api.js';
 import { speak } from './tts.js';
 
-// --- HTML 转义，防止 XSS ---
+// --- HTML 转义，防止 XSS（正则版，避免重复创建 DOM 元素）---
+const _escMap = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const _escRe = /[&<>"']/g;
 function esc(s) {
   if (!s) return '';
-  const d = document.createElement('div');
-  d.textContent = s;
-  return d.innerHTML;
+  return String(s).replace(_escRe, c => _escMap[c]);
 }
 
-// --- 友好化错误信息 ---
-function friendlyDbError(err) {
-  if (err && err.message === 'DB_UNAVAILABLE') {
-    return '无法访问本地存储。如果你正在使用隐私/无痕模式，请切换到正常浏览模式后重试。';
-  }
-  if (err && err.message === 'STORAGE_FULL') {
-    return '设备存储空间不足，请清理后重试。';
-  }
-  return '数据操作失败，请稍后重试';
+// --- 统一错误信息映射 ---
+const ERROR_MESSAGES = {
+  DB_UNAVAILABLE: '无法访问本地存储。如果你正在使用隐私/无痕模式，请切换到正常浏览模式后重试。',
+  STORAGE_FULL: '设备存储空间不足，请清理后重试。',
+  NETWORK: '网络连接失败，请检查网络后重试',
+  NOT_FOUND: '暂无词汇数据（vocab.json 不存在）',
+  SERVER: '服务器错误，请稍后重试',
+  PARSE: '词汇数据格式异常',
+};
+
+function friendlyError(err) {
+  if (!err) return '操作失败，请稍后重试';
+  return ERROR_MESSAGES[err.message] || err.message || '操作失败，请稍后重试';
 }
 
-function showGlobalError(msg) {
-  // Show a toast-like error at the top
+// --- Toast 提示（替代 alert）---
+function showToast(msg, type = 'error') {
   let toast = document.getElementById('global-toast');
   if (!toast) {
     toast = document.createElement('div');
@@ -32,33 +36,52 @@ function showGlobalError(msg) {
     document.body.prepend(toast);
   }
   toast.textContent = msg;
-  toast.className = 'global-toast show';
+  toast.className = `global-toast show ${type === 'success' ? 'toast-success' : ''}`;
   clearTimeout(toast._timer);
   toast._timer = setTimeout(() => toast.className = 'global-toast', 4000);
 }
 
-// --- SW 注册 + 更新提示 ---
+// 兼容旧调用
+function showGlobalError(msg) { showToast(msg, 'error'); }
+
+// --- SW 注册 + 更新提示（用 banner 替代 confirm）---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
-  // 监听 SW 更新，提示用户刷新
   let refreshing = false;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (refreshing) return;
     refreshing = true;
-    if (confirm('应用已更新，是否刷新页面以使用新版本？')) {
-      location.reload();
-    }
+    showUpdateBanner();
   });
 }
 
-// --- iOS Safari 键盘适配 ---
+function showUpdateBanner() {
+  let banner = document.getElementById('update-banner');
+  if (banner) return;
+  banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.className = 'update-banner show';
+  banner.innerHTML = '应用已更新 <button id="btn-update-reload">刷新</button> <button id="btn-update-dismiss">稍后</button>';
+  document.body.appendChild(banner);
+  document.getElementById('btn-update-reload').onclick = () => location.reload();
+  document.getElementById('btn-update-dismiss').onclick = () => banner.remove();
+}
+
+// --- iOS Safari 键盘适配（旋转后更新基准高度）---
 const tabBar = document.querySelector('.tab-bar');
 if (window.visualViewport) {
   let originalHeight = window.innerHeight;
+  // 旋转或 resize 后更新基准高度（全屏态，无键盘）
+  window.addEventListener('orientationchange', () => {
+    setTimeout(() => { originalHeight = window.innerHeight; }, 200);
+  });
   window.visualViewport.addEventListener('resize', () => {
     const vv = window.visualViewport;
+    // 键盘弹出时 viewport 高度显著缩小
     const keyboardOpen = vv.height < originalHeight * 0.75;
     if (tabBar) tabBar.style.display = keyboardOpen ? 'none' : 'flex';
+    // 键盘收起时更新基准（此时 vv.height ≈ 全屏高度）
+    if (!keyboardOpen) originalHeight = vv.height;
   });
 }
 
@@ -108,7 +131,7 @@ async function initReview() {
     reviewStats = { total: reviewQueue.length, known: 0, unknown: 0 };
     showCard();
   } catch (err) {
-    reviewArea.innerHTML = `<div class="error-msg">${esc(friendlyDbError(err))}</div>`;
+    reviewArea.innerHTML = `<div class="error-msg">${esc(friendlyError(err))}</div>`;
   }
 }
 
@@ -182,7 +205,7 @@ function showCard() {
     try {
       await putCard(currentCard);
     } catch (err) {
-      showGlobalError(friendlyDbError(err));
+      showGlobalError(friendlyError(err));
     }
     showCard();
   };
@@ -195,7 +218,7 @@ function showCard() {
     try {
       await putCard(card);
     } catch (err) {
-      showGlobalError(friendlyDbError(err));
+      showGlobalError(friendlyError(err));
     }
     reviewQueue.push(card);
     showCard();
@@ -294,7 +317,7 @@ async function handleAdd() {
       return;
     }
   } catch (err) {
-    addResult.innerHTML = `<div class="error-msg">${esc(friendlyDbError(err))}</div>`;
+    addResult.innerHTML = `<div class="error-msg">${esc(friendlyError(err))}</div>`;
     return;
   }
 
@@ -403,18 +426,10 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
     }
     localStorage.setItem('lastVocabSync', String(Date.now()));
     updateSyncTime();
-    alert(`新增 ${newCards.length} 个单词，跳过 ${skipped} 个已存在`);
+    showToast(`新增 ${newCards.length} 个单词，跳过 ${skipped} 个已存在`, 'success');
     renderLibrary();
   } catch (e) {
-    const msgs = {
-      NETWORK: '网络连接失败，请检查网络后重试',
-      NOT_FOUND: '暂无词汇数据（vocab.json 不存在）',
-      SERVER: '服务器错误，请稍后重试',
-      PARSE: '词汇数据格式异常',
-      DB_UNAVAILABLE: '无法访问本地存储，请使用正常浏览模式',
-      STORAGE_FULL: '设备存储空间不足'
-    };
-    alert('同步失败：' + (msgs[e.message] || '请稍后重试'));
+    showToast('同步失败：' + friendlyError(e));
   } finally {
     btn.disabled = false;
     btn.textContent = '📰 同步经济学人词汇';
@@ -440,8 +455,13 @@ async function renderLibrary() {
 
     all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-    libraryList.innerHTML = all.map(c => `
-      <div class="lib-item" data-word="${esc(c.word)}">
+    // 使用 DocumentFragment 一次性挂载，避免大词库逐个插入卡顿
+    const frag = document.createDocumentFragment();
+    for (const c of all) {
+      const item = document.createElement('div');
+      item.className = 'lib-item';
+      item.dataset.word = c.word;
+      item.innerHTML = `
         <div class="lib-row">
           <span class="lib-word">${esc(c.word)}</span>
           <span class="lib-def">${esc(c.definition)}</span>
@@ -455,11 +475,9 @@ async function renderLibrary() {
             <button class="btn btn-sm btn-toggle">${c.mastered ? '标为待复习' : '标为已掌握'}</button>
             <button class="btn btn-sm btn-delete">删除</button>
           </div>
-        </div>
-      </div>`).join('');
+        </div>`;
 
-    libraryList.querySelectorAll('.lib-item').forEach(item => {
-      const word = item.dataset.word;
+      const word = c.word;
       const detail = item.querySelector('.lib-detail');
       item.querySelector('.lib-row').onclick = () => {
         detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
@@ -470,8 +488,7 @@ async function renderLibrary() {
       };
       const exBtn = item.querySelector('.btn-speak-example');
       if (exBtn) {
-        const card = all.find(c => c.word === word);
-        exBtn.onclick = (e) => { e.stopPropagation(); speak(card.example); };
+        exBtn.onclick = (e) => { e.stopPropagation(); speak(c.example); };
       }
       item.querySelector('.btn-toggle').onclick = async (e) => {
         e.stopPropagation();
@@ -481,23 +498,26 @@ async function renderLibrary() {
           await putCard(card);
           renderLibrary();
         } catch (err) {
-          showGlobalError(friendlyDbError(err));
+          showGlobalError(friendlyError(err));
         }
       };
-      item.querySelector('.btn-delete').onclick = async (e) => {
+      item.querySelector('.btn-delete').onclick = (e) => {
         e.stopPropagation();
-        if (confirm(`确定删除 "${word}"？`)) {
+        showConfirmDialog(`确定删除 "${esc(word)}"？`, async () => {
           try {
             await deleteCard(word);
             renderLibrary();
           } catch (err) {
-            showGlobalError(friendlyDbError(err));
+            showGlobalError(friendlyError(err));
           }
-        }
+        });
       };
-    });
+      frag.appendChild(item);
+    }
+    libraryList.innerHTML = '';
+    libraryList.appendChild(frag);
   } catch (err) {
-    libraryList.innerHTML = `<div class="error-msg">${esc(friendlyDbError(err))}</div>`;
+    libraryList.innerHTML = `<div class="error-msg">${esc(friendlyError(err))}</div>`;
   }
 }
 
@@ -518,7 +538,7 @@ async function updateSettingsStats() {
     const pending = all.length - mastered;
     document.getElementById('settings-stats').textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
   } catch (err) {
-    document.getElementById('settings-stats').textContent = friendlyDbError(err);
+    document.getElementById('settings-stats').textContent = friendlyError(err);
   }
 }
 
@@ -533,7 +553,7 @@ document.getElementById('btn-save-settings').addEventListener('click', () => {
   const model = document.getElementById('settings-model').value;
   if (key) localStorage.setItem('minimax_api_key', key);
   localStorage.setItem('minimax_model', model);
-  alert('设置已保存');
+  showToast('设置已保存', 'success');
 });
 
 document.getElementById('toggle-key-vis').addEventListener('click', () => {
@@ -554,7 +574,7 @@ document.getElementById('btn-export').addEventListener('click', async () => {
     a.click();
     URL.revokeObjectURL(url);
   } catch (err) {
-    alert('导出失败：' + friendlyDbError(err));
+    showToast('导出失败：' + friendlyError(err));
   }
 });
 
@@ -572,16 +592,18 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
     }
     if (!Array.isArray(cards)) throw new Error('文件格式错误：期望数组格式');
 
-    // 先获取已有单词，过滤出需要导入的
+    // 先获取已有单词（统一小写比较），过滤出需要导入的
     const existingCards = await getAllCards();
-    const existingWords = new Set(existingCards.map(c => c.word));
+    const existingWords = new Set(existingCards.map(c => c.word.toLowerCase()));
     const newCards = [];
     let skipped = 0;
     for (const card of cards) {
       if (!card.word) continue;
-      if (existingWords.has(card.word)) { skipped++; continue; }
+      const w = card.word.toLowerCase();
+      if (existingWords.has(w)) { skipped++; continue; }
+      existingWords.add(w); // 防止同一批次内重复
       newCards.push({
-        word: card.word,
+        word: w,
         phonetic: card.phonetic || '',
         pos: card.pos || '',
         definition: card.definition || '',
@@ -597,44 +619,69 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
     if (newCards.length > 0) {
       await bulkImport(newCards);
     }
-    alert(`导入完成！新增 ${newCards.length} 个，跳过 ${skipped} 个已存在的单词。`);
+    showToast(`导入完成！新增 ${newCards.length} 个，跳过 ${skipped} 个已存在`, 'success');
     await updateSettingsStats();
   } catch (err) {
-    alert('导入失败：' + (err.message || '请稍后重试'));
+    showToast('导入失败：' + (err.message || '请稍后重试'));
   }
   e.target.value = '';
 });
 
 // --- 清空词库（保留设置）---
 document.getElementById('btn-clear-vocab').addEventListener('click', async () => {
-  if (!confirm('确定要清空词库吗？所有单词将被删除，但 API Key 和设置会保留。')) return;
-  try {
-    await clearAll();
-    localStorage.removeItem('card_cache');
-    localStorage.removeItem('lastVocabSync');
-    alert('词库已清空');
-    await updateSettingsStats();
-  } catch (err) {
-    alert('清空失败：' + friendlyDbError(err));
-  }
+  showConfirmDialog('确定要清空词库吗？所有单词将被删除，但 API Key 和设置会保留。', async () => {
+    try {
+      await clearAll();
+      localStorage.removeItem('card_cache');
+      localStorage.removeItem('lastVocabSync');
+      showToast('词库已清空', 'success');
+      await updateSettingsStats();
+    } catch (err) {
+      showToast('清空失败：' + friendlyError(err));
+    }
+  });
 });
 
 // --- 重置应用（含设置）---
 document.getElementById('btn-clear-all').addEventListener('click', async () => {
-  if (!confirm('确定要重置应用吗？所有数据（含 API Key）都将删除！')) return;
-  if (!confirm('再次确认：这将删除所有单词和设置，确定继续？')) return;
-  try {
-    await clearAll();
-    localStorage.removeItem('minimax_api_key');
-    localStorage.removeItem('minimax_model');
-    localStorage.removeItem('card_cache');
-    localStorage.removeItem('lastVocabSync');
-    alert('所有数据已清空');
-    await updateSettingsStats();
-  } catch (err) {
-    alert('重置失败：' + friendlyDbError(err));
-  }
+  showConfirmDialog('⚠️ 确定要重置应用吗？所有数据（含 API Key）都将删除！', async () => {
+    try {
+      await clearAll();
+      localStorage.removeItem('minimax_api_key');
+      localStorage.removeItem('minimax_model');
+      localStorage.removeItem('card_cache');
+      localStorage.removeItem('lastVocabSync');
+      showToast('所有数据已清空', 'success');
+      await updateSettingsStats();
+    } catch (err) {
+      showToast('重置失败：' + friendlyError(err));
+    }
+  });
 });
+
+// --- 自定义确认对话框（替代 confirm，PWA 模式更友好）---
+function showConfirmDialog(msg, onConfirm) {
+  // 移除已有的对话框
+  const existing = document.getElementById('confirm-dialog-overlay');
+  if (existing) existing.remove();
+
+  const overlay = document.createElement('div');
+  overlay.id = 'confirm-dialog-overlay';
+  overlay.className = 'confirm-overlay';
+  overlay.innerHTML = `
+    <div class="confirm-dialog">
+      <p class="confirm-msg">${msg}</p>
+      <div class="confirm-actions">
+        <button class="btn btn-sm confirm-cancel">取消</button>
+        <button class="btn btn-sm btn-danger confirm-ok">确定</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+
+  overlay.querySelector('.confirm-cancel').onclick = () => overlay.remove();
+  overlay.querySelector('.confirm-ok').onclick = () => { overlay.remove(); onConfirm(); };
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
 
 // --- 初始化 ---
 switchTab('review');
