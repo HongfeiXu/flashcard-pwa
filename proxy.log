@@ -1,0 +1,39 @@
+----------------------------------------
+Exception occurred during processing of request from ('192.168.3.148', 8001)
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/http/server.py", line 731, in send_head
+    f = open(path, 'rb')
+        ^^^^^^^^^^^^^^^^
+FileNotFoundError: [Errno 2] No such file or directory: '/home/hongfei/.openclaw/workspace/flashcard-pwa/favicon.ico'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/lib/python3.12/socketserver.py", line 318, in _handle_request_noblock
+    self.process_request(request, client_address)
+  File "/usr/lib/python3.12/socketserver.py", line 349, in process_request
+    self.finish_request(request, client_address)
+  File "/usr/lib/python3.12/socketserver.py", line 362, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+  File "/usr/lib/python3.12/http/server.py", line 672, in __init__
+    super().__init__(*args, **kwargs)
+  File "/usr/lib/python3.12/socketserver.py", line 761, in __init__
+    self.handle()
+  File "/usr/lib/python3.12/http/server.py", line 436, in handle
+    self.handle_one_request()
+  File "/usr/lib/python3.12/http/server.py", line 424, in handle_one_request
+    method()
+  File "/usr/lib/python3.12/http/server.py", line 676, in do_GET
+    f = self.send_head()
+        ^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/http/server.py", line 733, in send_head
+    self.send_error(HTTPStatus.NOT_FOUND, "File not found")
+  File "/usr/lib/python3.12/http/server.py", line 466, in send_error
+    self.log_error("code %d, message %s", code, message)
+  File "/usr/lib/python3.12/http/server.py", line 568, in log_error
+    self.log_message(format, *args)
+  File "/home/hongfei/.openclaw/workspace/flashcard-pwa/proxy.py", line 56, in log_message
+    if '/api/' in (args[0] if args else ''):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+TypeError: argument of type 'HTTPStatus' is not iterable
+----------------------------------------
