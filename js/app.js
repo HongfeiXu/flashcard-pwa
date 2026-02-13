@@ -195,15 +195,21 @@ function showCard() {
 
   document.getElementById('card-flip').onclick = (e) => {
     const el = document.getElementById('card-flip');
+    const rect = el.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const isRightSide = clickX > rect.width / 2;
+    
     if (!isFlipped) {
-      const rect = el.getBoundingClientRect();
-      const clickX = e.clientX - rect.left;
-      const direction = clickX < rect.width / 2 ? '-180deg' : '180deg';
+      // 正面→背面：右侧顺时针，左侧逆时针
+      const direction = isRightSide ? '180deg' : '-180deg';
       el.style.setProperty('--flip-direction', direction);
       el.classList.add('flipped');
       document.getElementById('review-actions').style.display = 'flex';
       isFlipped = true;
     } else {
+      // 背面→正面：右侧逆时针，左侧顺时针（反向翻回）
+      const direction = isRightSide ? '-180deg' : '180deg';
+      el.style.setProperty('--flip-direction', direction);
       el.classList.remove('flipped');
       document.getElementById('review-actions').style.display = 'none';
       isFlipped = false;
