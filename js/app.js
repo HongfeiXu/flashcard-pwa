@@ -415,7 +415,7 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
 
     // 先获取已有单词（统一小写比较），过滤出需要新增的
     const existingCards = await getAllCards();
-    const existingWords = new Set(existingCards.map(c => c.word.toLowerCase()));
+    const existingWords = new Set(existingCards.map(c => (c.word || '').toLowerCase()));
     const newCards = [];
     let skipped = 0;
     for (const item of vocabList) {
@@ -520,7 +520,7 @@ async function renderLibrary() {
       };
       item.querySelector('.btn-delete').onclick = (e) => {
         e.stopPropagation();
-        showConfirmDialog(`确定删除 "${esc(word)}"？`, async () => {
+        showConfirmDialog(`确定删除 "${word}"？`, async () => {
           try {
             await deleteCard(word);
             renderLibrary();
@@ -615,7 +615,7 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
 
     // 先获取已有单词（统一小写比较），过滤出需要导入的
     const existingCards = await getAllCards();
-    const existingWords = new Set(existingCards.map(c => c.word.toLowerCase()));
+    const existingWords = new Set(existingCards.map(c => (c.word || '').toLowerCase()));
     const newCards = [];
     let skipped = 0;
     for (const card of cards) {
@@ -692,12 +692,13 @@ function showConfirmDialog(msg, onConfirm) {
   overlay.className = 'confirm-overlay';
   overlay.innerHTML = `
     <div class="confirm-dialog">
-      <p class="confirm-msg">${msg}</p>
+      <p class="confirm-msg"></p>
       <div class="confirm-actions">
         <button class="btn btn-sm confirm-cancel">取消</button>
         <button class="btn btn-sm btn-danger confirm-ok">确定</button>
       </div>
     </div>`;
+  overlay.querySelector('.confirm-msg').textContent = msg;
   document.body.appendChild(overlay);
 
   overlay.querySelector('.confirm-cancel').onclick = () => overlay.remove();

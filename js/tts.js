@@ -2,6 +2,7 @@
 
 let _voicesReady = false;
 let _pendingCallback = null; // 防止重复注册 voiceschanged
+let _speakTimeout = null;    // 防止 voiceschanged + timeout 双触发
 
 function speak(word) {
   if (!window.speechSynthesis) return;
@@ -11,19 +12,30 @@ function speak(word) {
 
   // iOS Safari 首次调用时 voices 可能为空，等待 voiceschanged 后重试
   if (voices.length === 0 && !_voicesReady) {
-    // 清除上次挂的 listener，避免重复注册
+    // 清除上次挂的 listener + timeout，避免重复
     if (_pendingCallback) {
       window.speechSynthesis.removeEventListener('voiceschanged', _pendingCallback);
     }
+    if (_speakTimeout) {
+      clearTimeout(_speakTimeout);
+    }
+
     _pendingCallback = () => {
       _voicesReady = true;
       window.speechSynthesis.removeEventListener('voiceschanged', _pendingCallback);
       _pendingCallback = null;
+      // voiceschanged 先到 → 取消 timeout，避免重复朗读
+      if (_speakTimeout) {
+        clearTimeout(_speakTimeout);
+        _speakTimeout = null;
+      }
       speak(word); // 重试
     };
     window.speechSynthesis.addEventListener('voiceschanged', _pendingCallback);
-    // 设置超时，避免永远等待
-    setTimeout(() => {
+
+    // 设置超时兜底
+    _speakTimeout = setTimeout(() => {
+      _speakTimeout = null;
       if (_pendingCallback) {
         window.speechSynthesis.removeEventListener('voiceschanged', _pendingCallback);
         _pendingCallback = null;
