@@ -4,9 +4,45 @@ import { getAllCards, getCard, addCard, putCard, deleteCard } from './db.js';
 import { generateCard, getApiKey, getCachedCard, setCachedCard } from './api.js';
 import { speak } from './tts.js';
 
+// --- 友好化错误信息 ---
+function friendlyDbError(err) {
+  if (err && err.message === 'DB_UNAVAILABLE') {
+    return '无法访问本地存储。如果你正在使用隐私/无痕模式，请切换到正常浏览模式后重试。';
+  }
+  if (err && err.message === 'STORAGE_FULL') {
+    return '设备存储空间不足，请清理后重试。';
+  }
+  return '数据操作失败，请稍后重试';
+}
+
+function showGlobalError(msg) {
+  // Show a toast-like error at the top
+  let toast = document.getElementById('global-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'global-toast';
+    document.body.prepend(toast);
+  }
+  toast.textContent = msg;
+  toast.className = 'global-toast show';
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => toast.className = 'global-toast', 4000);
+}
+
 // --- SW 注册 ---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// --- iOS Safari 键盘适配 ---
+const tabBar = document.querySelector('.tab-bar');
+if (window.visualViewport) {
+  let originalHeight = window.innerHeight;
+  window.visualViewport.addEventListener('resize', () => {
+    const vv = window.visualViewport;
+    const keyboardOpen = vv.height < originalHeight * 0.75;
+    if (tabBar) tabBar.style.display = keyboardOpen ? 'none' : 'flex';
+  });
 }
 
 // --- Tab 切换 ---
@@ -39,20 +75,24 @@ function shuffle(arr) {
 }
 
 async function initReview() {
-  const all = await getAllCards();
-  const pending = all.filter(c => !c.mastered);
-  if (pending.length === 0) {
-    reviewArea.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">📭</div>
-        <p>${all.length === 0 ? '词库为空，去添加第一个单词吧！' : '所有单词都已掌握！🎉'}</p>
-        <button class="btn btn-primary" onclick="document.querySelector('[data-tab=add]').click()">去添加</button>
-      </div>`;
-    return;
+  try {
+    const all = await getAllCards();
+    const pending = all.filter(c => !c.mastered);
+    if (pending.length === 0) {
+      reviewArea.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">📭</div>
+          <p>${all.length === 0 ? '词库为空，去添加第一个单词吧！' : '所有单词都已掌握！🎉'}</p>
+          <button class="btn btn-primary" onclick="document.querySelector('[data-tab=add]').click()">去添加</button>
+        </div>`;
+      return;
+    }
+    reviewQueue = shuffle([...pending]);
+    reviewStats = { total: reviewQueue.length, known: 0, unknown: 0 };
+    showCard();
+  } catch (err) {
+    reviewArea.innerHTML = `<div class="error-msg">${friendlyDbError(err)}</div>`;
   }
-  reviewQueue = shuffle([...pending]);
-  reviewStats = { total: reviewQueue.length, known: 0, unknown: 0 };
-  showCard();
 }
 
 function showCard() {
@@ -115,7 +155,11 @@ function showCard() {
     currentCard.mastered = true;
     currentCard.correctCount = (currentCard.correctCount || 0) + 1;
     currentCard.lastReviewedAt = Date.now();
-    await putCard(currentCard);
+    try {
+      await putCard(currentCard);
+    } catch (err) {
+      showGlobalError(friendlyDbError(err));
+    }
     showCard();
   };
 
@@ -124,7 +168,11 @@ function showCard() {
     reviewStats.unknown++;
     card.reviewCount = (card.reviewCount || 0) + 1;
     card.lastReviewedAt = Date.now();
-    await putCard(card);
+    try {
+      await putCard(card);
+    } catch (err) {
+      showGlobalError(friendlyDbError(err));
+    }
     reviewQueue.push(card);
     showCard();
   };
@@ -137,6 +185,15 @@ const addResult = document.getElementById('add-result');
 let isGenerating = false;
 
 let previewWord = null;
+
+// 输入验证：只允许英文字母、连字符、空格（多词短语）
+function validateWord(input) {
+  const word = input.trim().toLowerCase();
+  if (!word) return { valid: false, msg: '请输入单词' };
+  if (word.length > 50) return { valid: false, msg: '输入过长，请输入单个单词或短语' };
+  if (!/^[a-zA-Z][a-zA-Z\s\-']*$/.test(word)) return { valid: false, msg: '请输入有效的英文单词' };
+  return { valid: true, word };
+}
 
 function showPreview(word, data) {
   const card = {
@@ -176,14 +233,24 @@ function showPreview(word, data) {
       addInput.value = '';
       addInput.focus();
     } catch (e) {
-      addResult.innerHTML = '<div class="error-msg">保存失败：' + e.message + '</div>';
+      const msg = e.message === 'STORAGE_FULL'
+        ? '设备存储空间不足，请清理后重试'
+        : e.message === 'DB_UNAVAILABLE'
+        ? '无法访问本地存储，请使用正常浏览模式'
+        : '保存失败，请稍后重试';
+      addResult.innerHTML = `<div class="error-msg">${msg}</div>`;
     }
   };
 }
 
 async function handleAdd() {
-  const word = addInput.value.trim().toLowerCase();
-  if (!word || isGenerating) return;
+  const validation = validateWord(addInput.value);
+  if (!validation.valid) {
+    addResult.innerHTML = `<div class="error-msg">${validation.msg}</div>`;
+    return;
+  }
+  const word = validation.word;
+  if (isGenerating) return;
 
   if (previewWord === word && addResult.querySelector('#btn-save')) return;
 
@@ -192,9 +259,14 @@ async function handleAdd() {
     return;
   }
 
-  const existing = await getCard(word);
-  if (existing) {
-    addResult.innerHTML = '<div class="error-msg">该单词已在词库中</div>';
+  try {
+    const existing = await getCard(word);
+    if (existing) {
+      addResult.innerHTML = '<div class="error-msg">该单词已在词库中</div>';
+      return;
+    }
+  } catch (err) {
+    addResult.innerHTML = `<div class="error-msg">${friendlyDbError(err)}</div>`;
     return;
   }
 
@@ -257,10 +329,23 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
   btn.textContent = '⏳ 同步中...';
 
   try {
-    const resp = await fetch(getVocabUrl(), { cache: 'no-cache' });
-    if (!resp.ok) throw new Error('fetch failed');
-    const vocabList = await resp.json();
-    if (!Array.isArray(vocabList)) throw new Error('格式错误');
+    let resp;
+    try {
+      resp = await fetch(getVocabUrl(), { cache: 'no-cache' });
+    } catch (e) {
+      throw new Error('NETWORK');
+    }
+    if (!resp.ok) {
+      if (resp.status === 404) throw new Error('NOT_FOUND');
+      throw new Error('SERVER');
+    }
+    let vocabList;
+    try {
+      vocabList = await resp.json();
+    } catch (e) {
+      throw new Error('PARSE');
+    }
+    if (!Array.isArray(vocabList)) throw new Error('PARSE');
 
     let added = 0, skipped = 0;
     for (const item of vocabList) {
@@ -287,7 +372,15 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
     alert(`新增 ${added} 个单词，跳过 ${skipped} 个已存在`);
     renderLibrary();
   } catch (e) {
-    alert('同步失败：暂无词汇数据或网络错误');
+    const msgs = {
+      NETWORK: '网络连接失败，请检查网络后重试',
+      NOT_FOUND: '暂无词汇数据（vocab.json 不存在）',
+      SERVER: '服务器错误，请稍后重试',
+      PARSE: '词汇数据格式异常',
+      DB_UNAVAILABLE: '无法访问本地存储，请使用正常浏览模式',
+      STORAGE_FULL: '设备存储空间不足'
+    };
+    alert('同步失败：' + (msgs[e.message] || '请稍后重试'));
   } finally {
     btn.disabled = false;
     btn.textContent = '📰 同步经济学人词汇';
@@ -299,67 +392,79 @@ const libraryList = document.getElementById('library-list');
 const libraryStats = document.getElementById('library-stats');
 
 async function renderLibrary() {
-  const all = await getAllCards();
-  const mastered = all.filter(c => c.mastered).length;
-  const pending = all.length - mastered;
-  libraryStats.textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
-  updateSyncTime();
+  try {
+    const all = await getAllCards();
+    const mastered = all.filter(c => c.mastered).length;
+    const pending = all.length - mastered;
+    libraryStats.textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
+    updateSyncTime();
 
-  if (all.length === 0) {
-    libraryList.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>词库为空</p></div>';
-    return;
-  }
-
-  all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-
-  libraryList.innerHTML = all.map(c => `
-    <div class="lib-item" data-word="${c.word}">
-      <div class="lib-row">
-        <span class="lib-word">${c.word}</span>
-        <span class="lib-def">${c.definition}</span>
-        <span class="lib-badge ${c.mastered ? 'badge-mastered' : 'badge-pending'}">${c.mastered ? '已掌握' : '待复习'}</span>
-      </div>
-      <div class="lib-detail" style="display:none;">
-        <p>${c.phonetic || ''} ${c.pos || ''} <button class="btn-speak btn-speak-lib">🔊</button></p>
-        <p>${c.example || ''}${c.example ? ' <button class="btn-speak-inline btn-speak-example">🔊</button>' : ''}</p>
-        <p class="text-muted">${c.example_cn || ''}</p>
-        <div class="lib-actions">
-          <button class="btn btn-sm btn-toggle">${c.mastered ? '标为待复习' : '标为已掌握'}</button>
-          <button class="btn btn-sm btn-delete">删除</button>
-        </div>
-      </div>
-    </div>`).join('');
-
-  libraryList.querySelectorAll('.lib-item').forEach(item => {
-    const word = item.dataset.word;
-    const detail = item.querySelector('.lib-detail');
-    item.querySelector('.lib-row').onclick = () => {
-      detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
-    };
-    item.querySelector('.btn-speak-lib').onclick = (e) => {
-      e.stopPropagation();
-      speak(word);
-    };
-    const exBtn = item.querySelector('.btn-speak-example');
-    if (exBtn) {
-      const card = all.find(c => c.word === word);
-      exBtn.onclick = (e) => { e.stopPropagation(); speak(card.example); };
+    if (all.length === 0) {
+      libraryList.innerHTML = '<div class="empty-state"><div class="empty-icon">📭</div><p>词库为空</p></div>';
+      return;
     }
-    item.querySelector('.btn-toggle').onclick = async (e) => {
-      e.stopPropagation();
-      const card = await getCard(word);
-      card.mastered = !card.mastered;
-      await putCard(card);
-      renderLibrary();
-    };
-    item.querySelector('.btn-delete').onclick = async (e) => {
-      e.stopPropagation();
-      if (confirm(`确定删除 "${word}"？`)) {
-        await deleteCard(word);
-        renderLibrary();
+
+    all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+    libraryList.innerHTML = all.map(c => `
+      <div class="lib-item" data-word="${c.word}">
+        <div class="lib-row">
+          <span class="lib-word">${c.word}</span>
+          <span class="lib-def">${c.definition}</span>
+          <span class="lib-badge ${c.mastered ? 'badge-mastered' : 'badge-pending'}">${c.mastered ? '已掌握' : '待复习'}</span>
+        </div>
+        <div class="lib-detail" style="display:none;">
+          <p>${c.phonetic || ''} ${c.pos || ''} <button class="btn-speak btn-speak-lib">🔊</button></p>
+          <p>${c.example || ''}${c.example ? ' <button class="btn-speak-inline btn-speak-example">🔊</button>' : ''}</p>
+          <p class="text-muted">${c.example_cn || ''}</p>
+          <div class="lib-actions">
+            <button class="btn btn-sm btn-toggle">${c.mastered ? '标为待复习' : '标为已掌握'}</button>
+            <button class="btn btn-sm btn-delete">删除</button>
+          </div>
+        </div>
+      </div>`).join('');
+
+    libraryList.querySelectorAll('.lib-item').forEach(item => {
+      const word = item.dataset.word;
+      const detail = item.querySelector('.lib-detail');
+      item.querySelector('.lib-row').onclick = () => {
+        detail.style.display = detail.style.display === 'none' ? 'block' : 'none';
+      };
+      item.querySelector('.btn-speak-lib').onclick = (e) => {
+        e.stopPropagation();
+        speak(word);
+      };
+      const exBtn = item.querySelector('.btn-speak-example');
+      if (exBtn) {
+        const card = all.find(c => c.word === word);
+        exBtn.onclick = (e) => { e.stopPropagation(); speak(card.example); };
       }
-    };
-  });
+      item.querySelector('.btn-toggle').onclick = async (e) => {
+        e.stopPropagation();
+        try {
+          const card = await getCard(word);
+          card.mastered = !card.mastered;
+          await putCard(card);
+          renderLibrary();
+        } catch (err) {
+          showGlobalError(friendlyDbError(err));
+        }
+      };
+      item.querySelector('.btn-delete').onclick = async (e) => {
+        e.stopPropagation();
+        if (confirm(`确定删除 "${word}"？`)) {
+          try {
+            await deleteCard(word);
+            renderLibrary();
+          } catch (err) {
+            showGlobalError(friendlyDbError(err));
+          }
+        }
+      };
+    });
+  } catch (err) {
+    libraryList.innerHTML = `<div class="error-msg">${friendlyDbError(err)}</div>`;
+  }
 }
 
 // --- 设置页 ---
@@ -369,15 +474,18 @@ document.getElementById('btn-settings').addEventListener('click', async () => {
   const keyInput = document.getElementById('settings-apikey');
   keyInput.value = localStorage.getItem('minimax_api_key') || '';
   document.getElementById('settings-model').value = localStorage.getItem('minimax_model') || 'MiniMax-M2.1-lightning';
-  // Load stats
   await updateSettingsStats();
 });
 
 async function updateSettingsStats() {
-  const all = await getAllCards();
-  const mastered = all.filter(c => c.mastered).length;
-  const pending = all.length - mastered;
-  document.getElementById('settings-stats').textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
+  try {
+    const all = await getAllCards();
+    const mastered = all.filter(c => c.mastered).length;
+    const pending = all.length - mastered;
+    document.getElementById('settings-stats').textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
+  } catch (err) {
+    document.getElementById('settings-stats').textContent = friendlyDbError(err);
+  }
 }
 
 document.getElementById('btn-settings-back').addEventListener('click', () => {
@@ -401,15 +509,19 @@ document.getElementById('toggle-key-vis').addEventListener('click', () => {
 
 // --- 导出词库 ---
 document.getElementById('btn-export').addEventListener('click', async () => {
-  const all = await getAllCards();
-  const json = JSON.stringify(all, null, 2);
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `flashcard-backup-${new Date().toISOString().slice(0, 10)}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const all = await getAllCards();
+    const json = JSON.stringify(all, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `flashcard-backup-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    alert('导出失败：' + friendlyDbError(err));
+  }
 });
 
 // --- 导入词库 ---
@@ -418,8 +530,13 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
   if (!file) return;
   try {
     const text = await file.text();
-    const cards = JSON.parse(text);
-    if (!Array.isArray(cards)) throw new Error('格式错误：期望数组');
+    let cards;
+    try {
+      cards = JSON.parse(text);
+    } catch {
+      throw new Error('文件格式错误，请选择有效的 JSON 文件');
+    }
+    if (!Array.isArray(cards)) throw new Error('文件格式错误：期望数组格式');
     let imported = 0, skipped = 0;
     for (const card of cards) {
       if (!card.word) continue;
@@ -443,7 +560,7 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
     alert(`导入完成！新增 ${imported} 个，跳过 ${skipped} 个已存在的单词。`);
     await updateSettingsStats();
   } catch (err) {
-    alert('导入失败：' + err.message);
+    alert('导入失败：' + (err.message || '请稍后重试'));
   }
   e.target.value = '';
 });
@@ -451,30 +568,38 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
 // --- 清空词库（保留设置）---
 document.getElementById('btn-clear-vocab').addEventListener('click', async () => {
   if (!confirm('确定要清空词库吗？所有单词将被删除，但 API Key 和设置会保留。')) return;
-  const all = await getAllCards();
-  for (const card of all) {
-    await deleteCard(card.word);
+  try {
+    const all = await getAllCards();
+    for (const card of all) {
+      await deleteCard(card.word);
+    }
+    localStorage.removeItem('card_cache');
+    localStorage.removeItem('lastVocabSync');
+    alert(`已清空 ${all.length} 个单词`);
+    await updateSettingsStats();
+  } catch (err) {
+    alert('清空失败：' + friendlyDbError(err));
   }
-  localStorage.removeItem('card_cache');
-  localStorage.removeItem('lastVocabSync');
-  alert(`已清空 ${all.length} 个单词`);
-  await updateSettingsStats();
 });
 
 // --- 重置应用（含设置）---
 document.getElementById('btn-clear-all').addEventListener('click', async () => {
   if (!confirm('确定要重置应用吗？所有数据（含 API Key）都将删除！')) return;
   if (!confirm('再次确认：这将删除所有单词和设置，确定继续？')) return;
-  const all = await getAllCards();
-  for (const card of all) {
-    await deleteCard(card.word);
+  try {
+    const all = await getAllCards();
+    for (const card of all) {
+      await deleteCard(card.word);
+    }
+    localStorage.removeItem('minimax_api_key');
+    localStorage.removeItem('minimax_model');
+    localStorage.removeItem('card_cache');
+    localStorage.removeItem('lastVocabSync');
+    alert('所有数据已清空');
+    await updateSettingsStats();
+  } catch (err) {
+    alert('重置失败：' + friendlyDbError(err));
   }
-  localStorage.removeItem('minimax_api_key');
-  localStorage.removeItem('minimax_model');
-  localStorage.removeItem('card_cache');
-  localStorage.removeItem('lastVocabSync');
-  alert('所有数据已清空');
-  await updateSettingsStats();
 });
 
 // --- 初始化 ---

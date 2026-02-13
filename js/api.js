@@ -15,17 +15,22 @@ function getModel() {
   return localStorage.getItem('minimax_model') || 'MiniMax-M2.1-lightning';
 }
 
+// 友好化 API 错误信息
+function friendlyApiError(status, body) {
+  if (status === 401) return 'API Key 无效，请在设置中检查并重新输入';
+  if (status === 402 || (body && body.includes('insufficient'))) return 'API 余额不足，请前往 MiniMax 开放平台充值';
+  if (status === 429) return '请求太频繁，请稍后再试';
+  if (status >= 500) return 'AI 服务暂时不可用，请稍后再试';
+  if (status === 403) return '请求被拒绝，可能是 API Key 权限问题';
+  return `请求失败（${status}），请稍后重试`;
+}
+
 function parseAIResponse(data) {
   const textBlock = data.content.find(b => b.type === 'text');
-  if (!textBlock) throw new Error('No text content in response');
+  if (!textBlock) throw new Error('AI 未返回有效内容，请重试');
   let text = textBlock.text.trim();
-  // 清理各种 AI 可能返回的包裹格式
   text = text.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-  // 移除可能的 <think>...</think> 标签（某些模型会返回）
   text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
-  // 中文引号在 JSON 字符串值内是合法的 UTF-8，不需要替换
-  // 但如果 AI 用中文引号作为 JSON 结构符号（极少见），则需要特殊处理
-  // 尝试提取 JSON 对象（找第一个 { 到最后一个 }）
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start !== -1 && end > start) {
@@ -34,13 +39,11 @@ function parseAIResponse(data) {
   try {
     return JSON.parse(text);
   } catch (e) {
-    // 修复1：尾部多余逗号
     let fixed = text.replace(/,\s*}/g, '}').replace(/,\s*]/g, ']');
     try { return JSON.parse(fixed); } catch {}
 
-    // 修复2：AI 可能用中文引号 "" 作为 JSON 结构符（替换非字符串内的中文引号）
     fixed = text
-      .replace(/\u201c([^"\u201c\u201d]*)\u201d/g, '"$1"')  // "key" → "key"
+      .replace(/\u201c([^"\u201c\u201d]*)\u201d/g, '"$1"')
       .replace(/,\s*}/g, '}');
     try { return JSON.parse(fixed); } catch {}
 
@@ -87,7 +90,7 @@ async function generateCard(word) {
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      throw new Error(`API ${res.status}: ${errText}`);
+      throw new Error(friendlyApiError(res.status, errText));
     }
 
     const data = await res.json();
@@ -95,7 +98,10 @@ async function generateCard(word) {
     return parseAIResponse(data);
   } catch (err) {
     clearTimeout(timeoutId);
-    if (err.name === 'AbortError') throw new Error('请求超时（30秒），请重试');
+    if (err.name === 'AbortError') throw new Error('请求超时（30秒），请检查网络后重试');
+    if (err instanceof TypeError && err.message.includes('fetch')) {
+      throw new Error('网络连接失败，请检查网络设置');
+    }
     throw err;
   }
 }
@@ -113,7 +119,6 @@ function getCachedCard(word) {
   const cache = getCache();
   const idx = cache.findIndex(e => e.word === word);
   if (idx === -1) return null;
-  // 命中：移到末尾（最近使用）
   const [entry] = cache.splice(idx, 1);
   cache.push(entry);
   localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
@@ -122,11 +127,9 @@ function getCachedCard(word) {
 
 function setCachedCard(word, data) {
   const cache = getCache();
-  // 已存在则先移除
   const idx = cache.findIndex(e => e.word === word);
   if (idx !== -1) cache.splice(idx, 1);
   cache.push({ word, data });
-  // 超过上限，丢弃最旧的
   while (cache.length > CACHE_MAX) cache.shift();
   localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
 }

@@ -23,19 +23,38 @@
 - [x] 动画 & UI 打磨（fade-in、touch feedback、spinner）
 - **验收：** 可装桌面、离线复习、发音、体验流畅
 
-## 第 2.5 阶段：经济学人词汇联动
+## 第 2.5 阶段：经济学人词汇联动 ✅ (2026-02-13)
 - [x] 词库页「📰 同步经济学人词汇」按钮 + loading + 上次同步时间
 - [x] 从 GitHub Pages 拉取 vocab.json，逐条去重导入 IndexedDB
 - [x] 复习页/词库页例句 🔊 朗读按钮
 - [x] SW vocab.json Network First 策略，CACHE_VERSION → v2
-- [ ] 经济学人 cron prompt 增加例句中文翻译字段
-- [ ] 每篇文章生成时同时输出 vocab JSON
-- **验收：** 每天经济学人文章的词汇自动进入闪卡词库
+- [x] 经济学人 cron prompt 增加例句中文翻译字段
+- [x] 每篇文章生成时同时输出 vocab JSON + git push
+- [x] 历史 20 词汇补翻译
+- [x] 清空词库 vs 重置应用分离
 
-## 第三阶段：健壮性
-- [ ] 错误处理完善
-- [ ] CORS 问题处理（如需 Cloudflare Workers 代理）
-- [ ] iOS Safari 兼容性测试修复
+## 第三阶段：健壮性 ✅ (2026-02-13)
+- [x] 错误处理完善
+  - [x] 网络异常：fetch 失败显示友好中文提示
+  - [x] API 错误码区分：401/402/429/500 各有清晰提示
+  - [x] IndexedDB 不可用：隐私模式友好提示
+  - [x] 存储满：QuotaExceededError 捕获提示
+  - [x] JSON 解析失败：已有容错 + 友好提示
+  - [x] 空输入保护：验证英文字母/长度/特殊字符
+  - [x] 所有 DB 操作 try-catch + 友好提示
+- [x] iOS Safari 兼容性
+  - [x] 键盘弹出时隐藏底部 tab bar（visualViewport resize）
+  - [x] -webkit-backface-visibility / -webkit-transform-style-3d
+  - [x] -webkit-overflow-scrolling: touch（卡片背面）
+  - [x] safe-area-inset 适配（顶部 + 底部）
+  - [x] PWA meta 标签已正确（apple-mobile-web-app-capable/status-bar-style）
+  - [x] viewport width=device-width 消除 300ms 延迟
+- [x] 通用体验优化
+  - [x] 所有错误信息中文化/友好化
+  - [x] 全局 toast 提示组件
+  - [x] 词汇同步区分：网络错误 vs 404 不存在 vs 格式错误
+  - [x] 导入文件 JSON 解析错误友好提示
+- [x] CORS 问题已在 Phase 1.5 通过 Cloudflare Workers 解决
 - **验收：** 边界情况稳定
 
 ---
