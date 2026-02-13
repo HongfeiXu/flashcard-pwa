@@ -12,6 +12,12 @@ function esc(s) {
   return String(s).replace(_escRe, c => _escMap[c]);
 }
 
+// --- 字段清洗：强制字符串 + 截断 ---
+function safeStr(val, maxLen) {
+  if (val == null) return '';
+  return String(val).slice(0, maxLen);
+}
+
 // --- 统一错误信息映射 ---
 const ERROR_MESSAGES = {
   DB_UNAVAILABLE: '无法访问本地存储。如果你正在使用隐私/无痕模式，请切换到正常浏览模式后重试。',
@@ -128,8 +134,9 @@ async function initReview(force = false) {
         <div class="empty-state">
           <div class="empty-icon">📭</div>
           <p>${all.length === 0 ? '词库为空，去添加第一个单词吧！' : '所有单词都已掌握！🎉'}</p>
-          <button class="btn btn-primary" onclick="document.querySelector('[data-tab=add]').click()">去添加</button>
+          <button class="btn btn-primary" id="btn-go-add">去添加</button>
         </div>`;
+      document.getElementById('btn-go-add').onclick = () => switchTab('add');
       return;
     }
     reviewQueue = shuffle([...pending]);
@@ -412,17 +419,18 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
     const newCards = [];
     let skipped = 0;
     for (const item of vocabList) {
-      if (!item.word) continue;
-      const w = item.word.toLowerCase();
+      if (!item.word || typeof item.word !== 'string') continue;
+      const w = item.word.trim().toLowerCase();
+      if (!w || w.length > 100) continue;
       if (existingWords.has(w)) { skipped++; continue; }
       existingWords.add(w); // 防止同一批次内重复
       newCards.push({
         word: w,
-        phonetic: item.phonetic || '',
-        pos: item.pos || '',
-        definition: item.definition || '',
-        example: item.example || '',
-        example_cn: item.example_cn || '',
+        phonetic: safeStr(item.phonetic, 100),
+        pos: safeStr(item.pos, 50),
+        definition: safeStr(item.definition, 500),
+        example: safeStr(item.example, 500),
+        example_cn: safeStr(item.example_cn, 500),
         mastered: false,
         createdAt: Date.now(),
         reviewCount: 0,
@@ -560,7 +568,11 @@ document.getElementById('btn-settings-back').addEventListener('click', () => {
 document.getElementById('btn-save-settings').addEventListener('click', () => {
   const key = document.getElementById('settings-apikey').value.trim();
   const model = document.getElementById('settings-model').value;
-  if (key) localStorage.setItem('minimax_api_key', key);
+  if (key) {
+    localStorage.setItem('minimax_api_key', key);
+  } else {
+    localStorage.removeItem('minimax_api_key');
+  }
   localStorage.setItem('minimax_model', model);
   showToast('设置已保存', 'success');
 });
@@ -607,22 +619,23 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
     const newCards = [];
     let skipped = 0;
     for (const card of cards) {
-      if (!card.word) continue;
-      const w = card.word.toLowerCase();
+      if (!card.word || typeof card.word !== 'string') continue;
+      const w = card.word.trim().toLowerCase();
+      if (!w || w.length > 100) continue;
       if (existingWords.has(w)) { skipped++; continue; }
       existingWords.add(w); // 防止同一批次内重复
       newCards.push({
         word: w,
-        phonetic: card.phonetic || '',
-        pos: card.pos || '',
-        definition: card.definition || '',
-        example: card.example || '',
-        example_cn: card.example_cn || '',
-        mastered: card.mastered || false,
-        createdAt: card.createdAt || Date.now(),
-        reviewCount: card.reviewCount || 0,
-        correctCount: card.correctCount || 0,
-        lastReviewedAt: card.lastReviewedAt || null
+        phonetic: safeStr(card.phonetic, 100),
+        pos: safeStr(card.pos, 50),
+        definition: safeStr(card.definition, 500),
+        example: safeStr(card.example, 500),
+        example_cn: safeStr(card.example_cn, 500),
+        mastered: Boolean(card.mastered),
+        createdAt: typeof card.createdAt === 'number' ? card.createdAt : Date.now(),
+        reviewCount: typeof card.reviewCount === 'number' ? card.reviewCount : 0,
+        correctCount: typeof card.correctCount === 'number' ? card.correctCount : 0,
+        lastReviewedAt: typeof card.lastReviewedAt === 'number' ? card.lastReviewedAt : null
       });
     }
     if (newCards.length > 0) {
