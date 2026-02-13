@@ -1,5 +1,14 @@
 # 本地开发环境搭建
 
+> **文件说明**: 从零开始在本地运行项目（Node.js + Python proxy）、调试技巧、常见问题  
+> **最后更新**: 2026-02-13  
+> 
+> **相关文档**:  
+> - [部署指南](deployment-github-pages-workers.md) — 线上部署  
+> - [故障排查](troubleshooting-common-issues.md) — 常见问题解决
+
+---
+
 ## 前置要求
 
 - Node.js 14+ （运行加密脚本）

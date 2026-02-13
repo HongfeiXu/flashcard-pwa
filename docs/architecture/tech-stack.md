@@ -1,8 +1,11 @@
 # 技术栈选型
 
+> **文件说明**: 为什么选择纯前端 PWA、IndexedDB、MiniMax AI、Cloudflare Workers 等技术  
+> **最后更新**: 2026-02-13  
+> 
 > **相关文档**:
 > - [数据流设计](data-flow.md) — 了解各技术如何配合
-> - [MiniMax API 集成](minimax-api.md) — API 调用示例与最佳实践
+> - [MiniMax API 集成](minimax-api-integration.md) — API 调用示例与最佳实践
 
 ---
 

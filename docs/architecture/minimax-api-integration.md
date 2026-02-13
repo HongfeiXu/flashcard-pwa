@@ -1,5 +1,9 @@
 # MiniMax API 集成指南
 
+> **文件说明**: MiniMax AI API 的完整集成方案，含调用示例、响应解析、错误处理、LRU 缓存  
+> **最后更新**: 2026-02-13  
+> **源代码**: `js/api.js`
+> 
 > **相关文档**:
 > - [数据流设计](data-flow.md) — API 调用在整体流程中的位置
 > - [踩坑经验](../development/lessons-learned.md) — JSON 解析容错方案
@@ -186,7 +190,7 @@ function parseAIResponse(data) {
 }
 ```
 
-**详细容错方案**: [踩坑经验 #3](../development/lessons-learned.md#3-json-解析失败--ai-返回中文引号)
+**详细容错方案**: [故障排查 #3](../development/troubleshooting-common-issues.md#3-json-解析失败--ai-返回中文引号)
 
 ---
 
@@ -213,7 +217,7 @@ function friendlyApiError(status, body) {
 
 **解决方案**: 使用 Cloudflare Workers 代理。
 
-详见: [部署指南 — Cloudflare Workers](../development/deployment.md#cloudflare-workers-部署)
+详见: [部署指南 — Cloudflare Workers](../development/deployment-github-pages-workers.md#cloudflare-workers-部署)
 
 ---
 

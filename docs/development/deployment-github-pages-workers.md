@@ -1,4 +1,13 @@
-# 部署指南
+# 部署指南 (GitHub Pages + Cloudflare Workers)
+
+> **文件说明**: 如何将 PWA 部署到 GitHub Pages，配置 Cloudflare Workers API 代理  
+> **最后更新**: 2026-02-13  
+> 
+> **相关文档**:  
+> - [本地开发](local-development-setup.md) — 本地测试  
+> - [MiniMax API](../architecture/minimax-api-integration.md#cors-问题) — 为什么需要 Workers
+
+---
 
 ## GitHub Pages 部署
 
