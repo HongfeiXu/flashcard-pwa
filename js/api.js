@@ -1,4 +1,7 @@
 // api.js - MiniMax API 调用 + 响应解析
+//
+// 注意：MiniMax 使用 Anthropic Messages API 兼容格式（/anthropic/v1/messages），
+// 请求头包含 x-api-key 和 anthropic-version，与 Anthropic Claude API 格式一致。
 
 // API 代理地址：本地开发走本地代理，生产环境走 Cloudflare Workers
 const IS_LOCAL = location.hostname === 'localhost' || location.hostname.startsWith('192.168.');
@@ -7,6 +10,9 @@ const PROXY_BASE = IS_LOCAL
   : 'https://flashcard-api-proxy.icevmj.workers.dev';  // Cloudflare Workers
 const API_URL = PROXY_BASE + '/anthropic/v1/messages';
 
+// 安全说明：API Key 存储在 localStorage 中，这是纯前端 PWA 的已知限制。
+// XSS 防护（所有动态内容已做 HTML 转义）大幅降低了 Key 泄露风险。
+// 如需更高安全性，可考虑后端代理鉴权方案。
 function getApiKey() {
   return localStorage.getItem('minimax_api_key') || '';
 }

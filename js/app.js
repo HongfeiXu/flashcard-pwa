@@ -1,8 +1,16 @@
 // app.js - 主逻辑
 
-import { getAllCards, getCard, addCard, putCard, deleteCard } from './db.js';
+import { getAllCards, getCard, addCard, putCard, deleteCard, clearAll, bulkImport } from './db.js';
 import { generateCard, getApiKey, getCachedCard, setCachedCard } from './api.js';
 import { speak } from './tts.js';
+
+// --- HTML 转义，防止 XSS ---
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
 
 // --- 友好化错误信息 ---
 function friendlyDbError(err) {
@@ -29,9 +37,18 @@ function showGlobalError(msg) {
   toast._timer = setTimeout(() => toast.className = 'global-toast', 4000);
 }
 
-// --- SW 注册 ---
+// --- SW 注册 + 更新提示 ---
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
+  // 监听 SW 更新，提示用户刷新
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (refreshing) return;
+    refreshing = true;
+    if (confirm('应用已更新，是否刷新页面以使用新版本？')) {
+      location.reload();
+    }
+  });
 }
 
 // --- iOS Safari 键盘适配 ---
@@ -91,7 +108,7 @@ async function initReview() {
     reviewStats = { total: reviewQueue.length, known: 0, unknown: 0 };
     showCard();
   } catch (err) {
-    reviewArea.innerHTML = `<div class="error-msg">${friendlyDbError(err)}</div>`;
+    reviewArea.innerHTML = `<div class="error-msg">${esc(friendlyDbError(err))}</div>`;
   }
 }
 
@@ -120,15 +137,15 @@ function showCard() {
     <div class="card-container fade-in" id="card-flip">
       <div class="card">
         <div class="card-front">
-          <div class="card-word">${currentCard.word}</div>
+          <div class="card-word">${esc(currentCard.word)}</div>
           <button class="btn-speak" id="btn-tts">🔊</button>
         </div>
         <div class="card-back">
-          <div class="card-phonetic">${currentCard.phonetic || ''}</div>
-          <div class="card-pos">${currentCard.pos || ''}</div>
-          <div class="card-def">${currentCard.definition || ''}</div>
-          <div class="card-example">${currentCard.example || ''}${currentCard.example ? ' <button class="btn-speak-inline" id="btn-tts-example">🔊</button>' : ''}</div>
-          <div class="card-example-cn">${currentCard.example_cn || ''}</div>
+          <div class="card-phonetic">${esc(currentCard.phonetic)}</div>
+          <div class="card-pos">${esc(currentCard.pos)}</div>
+          <div class="card-def">${esc(currentCard.definition)}</div>
+          <div class="card-example">${esc(currentCard.example)}${currentCard.example ? ' <button class="btn-speak-inline" id="btn-tts-example">🔊</button>' : ''}</div>
+          <div class="card-example-cn">${esc(currentCard.example_cn)}</div>
         </div>
       </div>
     </div>
@@ -197,7 +214,7 @@ function validateWord(input) {
 
 function showPreview(word, data) {
   const card = {
-    word: data.word || word,
+    word: (data.word || word).toLowerCase(),
     phonetic: data.phonetic || '',
     pos: data.pos || '',
     definition: data.definition || '',
@@ -212,12 +229,12 @@ function showPreview(word, data) {
 
   addResult.innerHTML = `
     <div class="preview-card">
-      <div class="preview-word">${card.word}</div>
-      <div class="preview-phonetic">${card.phonetic}</div>
-      <div class="preview-pos">${card.pos}</div>
-      <div class="preview-def">${card.definition}</div>
-      <div class="preview-example">${card.example}</div>
-      <div class="preview-example-cn">${card.example_cn}</div>
+      <div class="preview-word">${esc(card.word)}</div>
+      <div class="preview-phonetic">${esc(card.phonetic)}</div>
+      <div class="preview-pos">${esc(card.pos)}</div>
+      <div class="preview-def">${esc(card.definition)}</div>
+      <div class="preview-example">${esc(card.example)}</div>
+      <div class="preview-example-cn">${esc(card.example_cn)}</div>
     </div>
     <button class="btn btn-primary" id="btn-save">保存到词库</button>`;
 
@@ -246,7 +263,7 @@ function showPreview(word, data) {
 async function handleAdd() {
   const validation = validateWord(addInput.value);
   if (!validation.valid) {
-    addResult.innerHTML = `<div class="error-msg">${validation.msg}</div>`;
+    addResult.innerHTML = `<div class="error-msg">${esc(validation.msg)}</div>`;
     return;
   }
   const word = validation.word;
@@ -266,7 +283,7 @@ async function handleAdd() {
       return;
     }
   } catch (err) {
-    addResult.innerHTML = `<div class="error-msg">${friendlyDbError(err)}</div>`;
+    addResult.innerHTML = `<div class="error-msg">${esc(friendlyDbError(err))}</div>`;
     return;
   }
 
@@ -286,7 +303,7 @@ async function handleAdd() {
     showPreview(word, data);
   } catch (err) {
     const msg = err.message === 'NO_API_KEY' ? '请先在设置中输入 API Key' : err.message;
-    addResult.innerHTML = `<div class="error-msg">${msg}</div><button class="btn btn-primary" id="btn-retry">重试</button>`;
+    addResult.innerHTML = `<div class="error-msg">${esc(msg)}</div><button class="btn btn-primary" id="btn-retry">重试</button>`;
     const retryBtn = document.getElementById('btn-retry');
     if (retryBtn) retryBtn.onclick = () => { isGenerating = false; addBtn.disabled = false; handleAdd(); };
     isGenerating = false;
@@ -347,13 +364,17 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
     }
     if (!Array.isArray(vocabList)) throw new Error('PARSE');
 
-    let added = 0, skipped = 0;
+    // 先获取已有单词，过滤出需要新增的
+    const existingCards = await getAllCards();
+    const existingWords = new Set(existingCards.map(c => c.word));
+    const newCards = [];
+    let skipped = 0;
     for (const item of vocabList) {
       if (!item.word) continue;
-      const existing = await getCard(item.word.toLowerCase());
-      if (existing) { skipped++; continue; }
-      await addCard({
-        word: item.word.toLowerCase(),
+      const w = item.word.toLowerCase();
+      if (existingWords.has(w)) { skipped++; continue; }
+      newCards.push({
+        word: w,
         phonetic: item.phonetic || '',
         pos: item.pos || '',
         definition: item.definition || '',
@@ -365,11 +386,13 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
         correctCount: 0,
         lastReviewedAt: null
       });
-      added++;
+    }
+    if (newCards.length > 0) {
+      await bulkImport(newCards);
     }
     localStorage.setItem('lastVocabSync', String(Date.now()));
     updateSyncTime();
-    alert(`新增 ${added} 个单词，跳过 ${skipped} 个已存在`);
+    alert(`新增 ${newCards.length} 个单词，跳过 ${skipped} 个已存在`);
     renderLibrary();
   } catch (e) {
     const msgs = {
@@ -407,16 +430,16 @@ async function renderLibrary() {
     all.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
     libraryList.innerHTML = all.map(c => `
-      <div class="lib-item" data-word="${c.word}">
+      <div class="lib-item" data-word="${esc(c.word)}">
         <div class="lib-row">
-          <span class="lib-word">${c.word}</span>
-          <span class="lib-def">${c.definition}</span>
+          <span class="lib-word">${esc(c.word)}</span>
+          <span class="lib-def">${esc(c.definition)}</span>
           <span class="lib-badge ${c.mastered ? 'badge-mastered' : 'badge-pending'}">${c.mastered ? '已掌握' : '待复习'}</span>
         </div>
         <div class="lib-detail" style="display:none;">
-          <p>${c.phonetic || ''} ${c.pos || ''} <button class="btn-speak btn-speak-lib">🔊</button></p>
-          <p>${c.example || ''}${c.example ? ' <button class="btn-speak-inline btn-speak-example">🔊</button>' : ''}</p>
-          <p class="text-muted">${c.example_cn || ''}</p>
+          <p>${esc(c.phonetic)} ${esc(c.pos)} <button class="btn-speak btn-speak-lib">🔊</button></p>
+          <p>${esc(c.example)}${c.example ? ' <button class="btn-speak-inline btn-speak-example">🔊</button>' : ''}</p>
+          <p class="text-muted">${esc(c.example_cn)}</p>
           <div class="lib-actions">
             <button class="btn btn-sm btn-toggle">${c.mastered ? '标为待复习' : '标为已掌握'}</button>
             <button class="btn btn-sm btn-delete">删除</button>
@@ -463,7 +486,7 @@ async function renderLibrary() {
       };
     });
   } catch (err) {
-    libraryList.innerHTML = `<div class="error-msg">${friendlyDbError(err)}</div>`;
+    libraryList.innerHTML = `<div class="error-msg">${esc(friendlyDbError(err))}</div>`;
   }
 }
 
@@ -537,12 +560,16 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
       throw new Error('文件格式错误，请选择有效的 JSON 文件');
     }
     if (!Array.isArray(cards)) throw new Error('文件格式错误：期望数组格式');
-    let imported = 0, skipped = 0;
+
+    // 先获取已有单词，过滤出需要导入的
+    const existingCards = await getAllCards();
+    const existingWords = new Set(existingCards.map(c => c.word));
+    const newCards = [];
+    let skipped = 0;
     for (const card of cards) {
       if (!card.word) continue;
-      const existing = await getCard(card.word);
-      if (existing) { skipped++; continue; }
-      await addCard({
+      if (existingWords.has(card.word)) { skipped++; continue; }
+      newCards.push({
         word: card.word,
         phonetic: card.phonetic || '',
         pos: card.pos || '',
@@ -555,9 +582,11 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
         correctCount: card.correctCount || 0,
         lastReviewedAt: card.lastReviewedAt || null
       });
-      imported++;
     }
-    alert(`导入完成！新增 ${imported} 个，跳过 ${skipped} 个已存在的单词。`);
+    if (newCards.length > 0) {
+      await bulkImport(newCards);
+    }
+    alert(`导入完成！新增 ${newCards.length} 个，跳过 ${skipped} 个已存在的单词。`);
     await updateSettingsStats();
   } catch (err) {
     alert('导入失败：' + (err.message || '请稍后重试'));
@@ -569,13 +598,10 @@ document.getElementById('btn-import').addEventListener('change', async (e) => {
 document.getElementById('btn-clear-vocab').addEventListener('click', async () => {
   if (!confirm('确定要清空词库吗？所有单词将被删除，但 API Key 和设置会保留。')) return;
   try {
-    const all = await getAllCards();
-    for (const card of all) {
-      await deleteCard(card.word);
-    }
+    await clearAll();
     localStorage.removeItem('card_cache');
     localStorage.removeItem('lastVocabSync');
-    alert(`已清空 ${all.length} 个单词`);
+    alert('词库已清空');
     await updateSettingsStats();
   } catch (err) {
     alert('清空失败：' + friendlyDbError(err));
@@ -587,10 +613,7 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
   if (!confirm('确定要重置应用吗？所有数据（含 API Key）都将删除！')) return;
   if (!confirm('再次确认：这将删除所有单词和设置，确定继续？')) return;
   try {
-    const all = await getAllCards();
-    for (const card of all) {
-      await deleteCard(card.word);
-    }
+    await clearAll();
     localStorage.removeItem('minimax_api_key');
     localStorage.removeItem('minimax_model');
     localStorage.removeItem('card_cache');

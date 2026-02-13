@@ -6,10 +6,16 @@ const STORE_NAME = 'cards';
 
 let _db = null;
 let _dbUnavailable = false;
+let _dbRetried = false; // 允许失败后重试一次
 
 function openDB() {
   if (_db) return Promise.resolve(_db);
-  if (_dbUnavailable) return Promise.reject(new Error('DB_UNAVAILABLE'));
+  // 如果之前失败过但还没重试，允许再试一次
+  if (_dbUnavailable) {
+    if (_dbRetried) return Promise.reject(new Error('DB_UNAVAILABLE'));
+    _dbRetried = true;
+    _dbUnavailable = false;
+  }
   return new Promise((resolve, reject) => {
     try {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
@@ -21,6 +27,7 @@ function openDB() {
       };
       req.onsuccess = (e) => {
         _db = e.target.result;
+        _dbRetried = false; // 成功后重置重试标志
         resolve(_db);
       };
       req.onerror = (e) => {
@@ -89,4 +96,40 @@ function deleteCard(word) {
   }));
 }
 
-export { openDB, getAllCards, getCard, addCard, putCard, deleteCard };
+function clearAll() {
+  return _tx('readwrite').then(store => new Promise((resolve, reject) => {
+    const req = store.clear();
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  }));
+}
+
+function bulkImport(cards) {
+  // 在一个 readwrite 事务中批量 put，避免每条一个事务
+  return openDB().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, 'readwrite');
+    const store = tx.objectStore(STORE_NAME);
+    for (const card of cards) {
+      store.put(card);
+    }
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => {
+      const err = tx.error;
+      if (err && (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+        reject(new Error('STORAGE_FULL'));
+      } else {
+        reject(err);
+      }
+    };
+    tx.onabort = () => {
+      const err = tx.error;
+      if (err && (err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED')) {
+        reject(new Error('STORAGE_FULL'));
+      } else {
+        reject(err || new Error('DB_UNAVAILABLE'));
+      }
+    };
+  }));
+}
+
+export { openDB, getAllCards, getCard, addCard, putCard, deleteCard, clearAll, bulkImport };
