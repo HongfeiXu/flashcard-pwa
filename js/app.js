@@ -398,15 +398,16 @@ document.getElementById('btn-sync-vocab').addEventListener('click', async functi
     }
     if (!Array.isArray(vocabList)) throw new Error('PARSE');
 
-    // 先获取已有单词，过滤出需要新增的
+    // 先获取已有单词（统一小写比较），过滤出需要新增的
     const existingCards = await getAllCards();
-    const existingWords = new Set(existingCards.map(c => c.word));
+    const existingWords = new Set(existingCards.map(c => c.word.toLowerCase()));
     const newCards = [];
     let skipped = 0;
     for (const item of vocabList) {
       if (!item.word) continue;
       const w = item.word.toLowerCase();
       if (existingWords.has(w)) { skipped++; continue; }
+      existingWords.add(w); // 防止同一批次内重复
       newCards.push({
         word: w,
         phonetic: item.phonetic || '',
