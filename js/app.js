@@ -197,10 +197,7 @@ function showCard() {
   let isFlipping = false;
   
   document.getElementById('card-flip').onclick = (e) => {
-    if (isFlipping) {
-      console.log('[Flip] Blocked: animation in progress');
-      return; // 动画期间忽略点击
-    }
+    if (isFlipping) return; // 动画期间忽略点击
     
     const el = document.getElementById('card-flip');
     const card = el.querySelector('.card');
@@ -215,14 +212,12 @@ function showCard() {
       card.style.transform = `rotateY(${currentRotation}deg)`;
       void card.offsetWidth; // 强制重绘
       card.style.transition = '';
-      console.log(`[Flip] Reset angle to ${currentRotation}`);
     }
     
     // 方向感统一：点右边始终顺时针（+180），点左边始终逆时针（-180）
     const delta = isRightSide ? 180 : -180;
     currentRotation += delta;
     card.style.transform = `rotateY(${currentRotation}deg)`;
-    console.log(`[Flip] Side: ${isRightSide ? 'RIGHT' : 'LEFT'}, Delta: ${delta}, New rotation: ${currentRotation}`);
     
     if (!isFlipped) {
       document.getElementById('review-actions').style.display = 'flex';
@@ -234,10 +229,7 @@ function showCard() {
     
     // 锁定 500ms（与 CSS transition 时长一致）
     isFlipping = true;
-    setTimeout(() => {
-      isFlipping = false;
-      console.log('[Flip] Lock released');
-    }, 500);
+    setTimeout(() => { isFlipping = false; }, 500);
   };
 
   document.getElementById('btn-tts').onclick = (e) => { e.stopPropagation(); speak(currentCard.word); };
