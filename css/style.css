@@ -212,6 +212,7 @@ body {
 .badge-mastered { background: #d4edda; color: #155724; }
 .badge-pending { background: #fff3cd; color: #856404; }
 .lib-detail { padding: 0 16px 14px; font-size: 14px; line-height: 1.6; }
+.srs-info { font-size: 0.8rem; color: #888; border-top: 1px solid #eee; margin-top: 10px; padding-top: 8px; line-height: 1.8; }
 .lib-actions { display: flex; gap: 8px; margin-top: 10px; }
 .btn-toggle { background: var(--primary); color: #fff; }
 .btn-delete { background: var(--danger); color: #fff; }

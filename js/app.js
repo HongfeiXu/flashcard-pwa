@@ -6,6 +6,37 @@ import { speak } from './tts.js';
 import { esc, safeStr, friendlyError, validateWord, shuffle } from './lib/utils.js';
 import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/srs.js';
 
+// --- 日期格式化 MM-DD ---
+function formatMMDD(ts) {
+  const d = new Date(ts);
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${mm}-${dd}`;
+}
+
+// --- 连续学习天数 ---
+function updateStudyStreak() {
+  const today = getTodayDate();
+  let streak;
+  try { streak = JSON.parse(localStorage.getItem('studyStreak')); } catch {}
+  if (!streak || typeof streak !== 'object') streak = { lastDate: null, count: 0 };
+
+  if (streak.lastDate === today) return; // 今天已记录
+
+  // 计算昨天日期
+  const d = new Date(today + 'T00:00:00');
+  d.setDate(d.getDate() - 1);
+  const yesterday = d.toISOString().slice(0, 10);
+
+  if (streak.lastDate === yesterday) {
+    streak.count++;
+  } else {
+    streak.count = 1;
+  }
+  streak.lastDate = today;
+  localStorage.setItem('studyStreak', JSON.stringify(streak));
+}
+
 // --- Toast 提示（替代 alert）---
 function showToast(msg, type = 'error') {
   let toast = document.getElementById('global-toast');
@@ -310,6 +341,7 @@ async function showCard() {
   if (ttsExample) ttsExample.onclick = (e) => { e.stopPropagation(); speak(currentCard.example); };
 
   document.getElementById('btn-known').onclick = async () => {
+    updateStudyStreak();
     const isFirstTime = !todayReview.firstAnswered.includes(word);
     todayReview.queue.shift();
 
@@ -327,6 +359,7 @@ async function showCard() {
   };
 
   document.getElementById('btn-unknown').onclick = async () => {
+    updateStudyStreak();
     const isFirstTime = !todayReview.firstAnswered.includes(word);
     todayReview.queue.shift();
 
@@ -577,9 +610,16 @@ async function renderLibrary() {
       item.dataset.word = c.word;
       const mc = migrateCard(c);
       const levelBadge = mc.mastered ? '🏆' : '⭐'.repeat(mc.level || 0) + '☆'.repeat(Math.max(0, 3 - (mc.level || 0)));
+      const difficult = mc.totalReviews >= 6 && (mc.level || 0) <= 1 && !mc.mastered;
+      const lastDate = mc.lastReviewedAt ? formatMMDD(mc.lastReviewedAt) : '--';
+      let nextDate;
+      if (mc.mastered) nextDate = '已掌握';
+      else if (!mc.nextReviewDate) nextDate = '待定';
+      else nextDate = formatMMDD(new Date(mc.nextReviewDate).getTime());
+      const nextIcon = mc.mastered ? '⏰ ' : '⏰ 下次 ';
       item.innerHTML = `
         <div class="lib-row">
-          <span class="lib-word">${esc(c.word)}</span>
+          <span class="lib-word">${esc(c.word)}${difficult ? ' 🔴' : ''}</span>
           <span class="lib-def">${esc(c.definition)}</span>
           <span class="lib-badge ${mc.mastered ? 'badge-mastered' : 'badge-pending'}">${levelBadge}</span>
         </div>
@@ -587,6 +627,10 @@ async function renderLibrary() {
           <p>${esc(c.phonetic)} ${esc(c.pos)} <button class="btn-speak btn-speak-lib">🔊</button></p>
           <p>${esc(c.example)}${c.example ? ' <button class="btn-speak-inline btn-speak-example">🔊</button>' : ''}</p>
           <p class="text-muted">${esc(c.example_cn)}</p>
+          <div class="srs-info">
+            <div>📖 复习 ${mc.totalReviews || 0} 次 | 🔥 连对 ${mc.correctStreak || 0} 次</div>
+            <div>📅 上次 ${lastDate} | ${nextIcon}${nextDate}${difficult ? ' | ⚠️ 困难词' : ''}</div>
+          </div>
           <div class="lib-actions">
             <button class="btn btn-sm btn-toggle">${c.mastered ? '标为待复习' : '标为已掌握'}</button>
             <button class="btn btn-sm btn-delete">删除</button>
@@ -676,9 +720,33 @@ document.getElementById('quota-buttons').addEventListener('click', (e) => {
 async function updateSettingsStats() {
   try {
     const all = await getAllCards();
-    const mastered = all.filter(c => c.mastered).length;
-    const pending = all.length - mastered;
-    document.getElementById('settings-stats').textContent = `共 ${all.length} 个单词，已掌握 ${mastered}，待复习 ${pending}`;
+    all.forEach(migrateCard);
+    const masteredCount = all.filter(c => c.mastered).length;
+    const levels = [0, 0, 0, 0]; // level 0-3
+    all.forEach(c => {
+      if (!c.mastered && c.level >= 0 && c.level <= 3) levels[c.level]++;
+    });
+
+    // Today's review progress
+    let todayText = '';
+    if (todayReview && todayReview.date === getTodayDate()) {
+      const answered = todayReview.correctCount + todayReview.wrongCount;
+      todayText = `今日：${answered}/${todayReview.words.length}（答对 ${todayReview.correctCount}，答错 ${todayReview.wrongCount}）`;
+    }
+
+    // Study streak
+    let streakText = '';
+    try {
+      const streak = JSON.parse(localStorage.getItem('studyStreak'));
+      if (streak && streak.count > 0) streakText = `连续学习：${streak.count} 天 🔥`;
+    } catch {}
+
+    const el = document.getElementById('settings-stats');
+    el.innerHTML = `
+      <div>总词数：${all.length}</div>
+      <div>新词 ${levels[0]} · 初识 ${levels[1]} · 熟悉 ${levels[2]} · 巩固 ${levels[3]} · 掌握 ${masteredCount}</div>
+      ${todayText ? `<div>${esc(todayText)}</div>` : ''}
+      ${streakText ? `<div>${esc(streakText)}</div>` : ''}`;
   } catch (err) {
     document.getElementById('settings-stats').textContent = friendlyError(err);
   }
