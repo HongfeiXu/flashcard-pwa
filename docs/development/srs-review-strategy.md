@@ -118,22 +118,14 @@ const MAX_LEVEL = 3;              // 最高等级
 | 参数 | 值 | 备注 |
 |------|-----|------|
 | 每日配额 | 10 / 20 / 30 / 40 / 50 | 默认 10，设置页可调 |
-| 新词上限 | Math.floor(配额 / 2) | 动态计算 |
 
-| 配额 | 新词上限 |
-|------|---------|
-| 10 | 5 |
-| 20 | 10 |
-| 30 | 15 |
-| 40 | 20 |
-| 50 | 25 |
+> 无新词上限：用户手动添加词汇，量本身可控，不需要额外限流。
 
 ### 选词流程
 
 ```javascript
 function selectTodayWords(allWords, quota) {
   const today = getTodayDate();
-  const newWordLimit = Math.floor(quota / 2);
 
   // 1. 排除已掌握的
   const active = allWords.filter(w => !w.mastered);
@@ -150,11 +142,10 @@ function selectTodayWords(allWords, quota) {
   );
   shuffle(newWords);
 
-  // 4. 组合：到期优先 + 新词补充（受上限约束）
+  // 4. 组合：到期优先 + 新词填满剩余配额
   let todayList = [...dueOld];
   if (todayList.length < quota) {
-    const needed = Math.min(quota - todayList.length, newWordLimit);
-    todayList.push(...newWords.slice(0, needed));
+    todayList.push(...newWords.slice(0, quota - todayList.length));
   }
 
   // 5. 截取配额
@@ -321,7 +312,6 @@ if (isFirstTime) {
 
 每日配额：
   [ 10 ] [ 20 ] [ 30 ] [ 40 ] [ 50 ]
-  新词上限自动为配额的 50%（当前：5 个/天）
 ```
 
 ### 词库页
@@ -413,7 +403,6 @@ function addDays(dateStr, days) {
 | 间隔 | 1 / 3 / 7 / 30 天 | 对应 level 0-3 |
 | 掌握时间 | 约 82 天 | 全部答对的理想情况 |
 | 每日配额 | 10 / 20 / 30 / 40 / 50 | 默认 10，设置页可调 |
-| 新词上限 | 配额的 50% | 动态计算 |
 | 答错策略 | 不降级，放回队列直到答对 | correctStreak 清零 |
 | 重试规则 | 不更新数据库，不累加 correctStreak | 仅影响队列 |
 | 配额调整 | 当天生效 | 确认后重新生成任务 |

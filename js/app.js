@@ -4,6 +4,7 @@ import { getAllCards, getCard, addCard, putCard, deleteCard, clearAll, bulkImpor
 import { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab } from './api.js';
 import { speak } from './tts.js';
 import { esc, safeStr, friendlyError, validateWord, shuffle } from './lib/utils.js';
+import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/srs.js';
 
 // --- Toast 提示（替代 alert）---
 function showToast(msg, type = 'error') {
@@ -77,23 +78,63 @@ function switchTab(id) {
 tabs.forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
 
 // --- 复习页 ---
-let reviewQueue = [];
-let reviewStats = { total: 0, known: 0, unknown: 0 };
 let currentCard = null;
 let isFlipped = false;
-let reviewActive = false; // 是否有进行中的复习，避免切 tab 时重置进度
+let reviewActive = false;
+
+// SRS 今日任务状态
+let todayReview = null; // { date, words, queue, firstAnswered, correctCount, wrongCount }
 
 const reviewArea = document.getElementById('review-area');
 
+function getDailyQuota() {
+  return parseInt(localStorage.getItem('dailyQuota')) || 10;
+}
+
+function saveTodayReview() {
+  if (todayReview) localStorage.setItem('todayReview', JSON.stringify(todayReview));
+}
+
+function migrateCard(card) {
+  if (card.level === undefined) card.level = 0;
+  if (card.correctStreak === undefined) card.correctStreak = 0;
+  if (card.nextReviewDate === undefined) card.nextReviewDate = null;
+  if (card.totalReviews === undefined) card.totalReviews = 0;
+  if (card.mastered === true && card.level === 0) card.level = MAX_LEVEL + 1;
+  return card;
+}
+
 async function initReview(force = false) {
-  // 有进行中的复习 → 跳过重置（除非强制刷新）
   if (reviewActive && !force) return;
 
   try {
     const all = await getAllCards();
-    const pending = all.filter(c => !c.mastered);
-    if (pending.length === 0) {
+    all.forEach(migrateCard);
+    const today = getTodayDate();
+
+    // Check localStorage for existing today's review
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem('todayReview')); } catch {}
+
+    if (saved && saved.date === today && !force) {
+      todayReview = saved;
+      if (todayReview.queue.length === 0) {
+        reviewActive = false;
+        showCompletePage();
+        return;
+      }
+      reviewActive = true;
+      showCard();
+      return;
+    }
+
+    // Generate new task
+    const quota = getDailyQuota();
+    const words = selectTodayWords(all, quota, today);
+
+    if (words.length === 0) {
       reviewActive = false;
+      todayReview = null;
       reviewArea.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">📭</div>
@@ -103,8 +144,16 @@ async function initReview(force = false) {
       document.getElementById('btn-go-add').onclick = () => switchTab('add');
       return;
     }
-    reviewQueue = shuffle([...pending]);
-    reviewStats = { total: reviewQueue.length, known: 0, unknown: 0 };
+
+    todayReview = {
+      date: today,
+      words: [...words],
+      queue: [...words],
+      firstAnswered: [],
+      correctCount: 0,
+      wrongCount: 0
+    };
+    saveTodayReview();
     reviewActive = true;
     showCard();
   } catch (err) {
@@ -113,29 +162,90 @@ async function initReview(force = false) {
   }
 }
 
-function showCard() {
-  if (reviewQueue.length === 0) {
-    reviewActive = false;
-    reviewArea.innerHTML = `
-      <div class="review-done">
-        <div class="done-icon">🎉</div>
-        <h2>本轮复习完成！</h2>
-        <div class="stats-grid">
-          <div class="stat"><span class="stat-num">${reviewStats.total}</span><span class="stat-label">总数</span></div>
-          <div class="stat"><span class="stat-num">${reviewStats.known}</span><span class="stat-label">认识</span></div>
-          <div class="stat"><span class="stat-num">${reviewStats.unknown}</span><span class="stat-label">不认识</span></div>
-        </div>
+function showCompletePage() {
+  const tr = todayReview;
+  reviewArea.innerHTML = `
+    <div class="review-done">
+      <div class="done-icon">🎉</div>
+      <h2>今日任务完成！</h2>
+      <div class="stats-grid">
+        <div class="stat"><span class="stat-num">${tr.words.length}</span><span class="stat-label">总数</span></div>
+        <div class="stat"><span class="stat-num">${tr.correctCount}</span><span class="stat-label">✅ 答对</span></div>
+        <div class="stat"><span class="stat-num">${tr.wrongCount}</span><span class="stat-label">❌ 答错</span></div>
+      </div>
+      <div style="display:flex;gap:10px;">
         <button class="btn btn-primary" id="btn-again">再来一轮</button>
-      </div>`;
-    document.getElementById('btn-again').onclick = () => initReview(true);
+        <button class="btn" id="btn-back-lib" style="background:#eee;color:#333;">返回词库</button>
+      </div>
+    </div>`;
+  document.getElementById('btn-again').onclick = async () => {
+    try {
+      const all = await getAllCards();
+      all.forEach(migrateCard);
+      const today = getTodayDate();
+      const quota = getDailyQuota();
+      const words = selectTodayWords(all, quota, today);
+      if (words.length === 0) {
+        showToast('今天没有更多需要复习的了，明天继续！', 'success');
+        return;
+      }
+      todayReview = {
+        date: today,
+        words: [...words],
+        queue: [...words],
+        firstAnswered: [],
+        correctCount: 0,
+        wrongCount: 0
+      };
+      saveTodayReview();
+      reviewActive = true;
+      showCard();
+    } catch (err) {
+      showToast(friendlyError(err));
+    }
+  };
+  document.getElementById('btn-back-lib').onclick = () => switchTab('library');
+}
+
+async function showCard() {
+  // 跨午夜检测
+  const today = getTodayDate();
+  if (todayReview && todayReview.date !== today) {
+    reviewActive = false;
+    initReview(true);
     return;
   }
 
-  currentCard = reviewQueue[0];
+  if (!todayReview || todayReview.queue.length === 0) {
+    reviewActive = false;
+    showCompletePage();
+    return;
+  }
+
+  const word = todayReview.queue[0];
+
+  // 从 DB 获取卡片数据（可能已被删除）
+  let cardData;
+  try {
+    cardData = await getCard(word);
+  } catch (err) {
+    showGlobalError(friendlyError(err));
+  }
+  if (!cardData) {
+    // 单词已被删除，跳过
+    todayReview.queue.shift();
+    saveTodayReview();
+    showCard();
+    return;
+  }
+  migrateCard(cardData);
+  currentCard = cardData;
   isFlipped = false;
 
+  const completed = todayReview.words.length - todayReview.queue.length;
+
   reviewArea.innerHTML = `
-    <div class="progress-text">${reviewStats.total - reviewQueue.length + 1} / ${reviewStats.total}</div>
+    <div class="progress-text">今日任务：${completed + 1} / ${todayReview.words.length}</div>
     <div class="card-container fade-in" id="card-flip">
       <div class="card">
         <div class="card-front">
@@ -157,11 +267,12 @@ function showCard() {
       <button class="btn btn-success" id="btn-known">✅ 认识</button>
     </div>`;
 
+  // 翻卡动画（保留原有逻辑）
   let currentRotation = 0;
   let isFlipping = false;
   
   document.getElementById('card-flip').onclick = (e) => {
-    if (isFlipping) return; // 动画期间忽略点击
+    if (isFlipping) return;
     
     const el = document.getElementById('card-flip');
     const card = el.querySelector('.card');
@@ -169,16 +280,14 @@ function showCard() {
     const clickX = e.clientX - rect.left;
     const isRightSide = clickX > rect.width / 2;
     
-    // 检查是否需要归一化（在累加之前）
     if (Math.abs(currentRotation) >= 360) {
       card.style.transition = 'none';
       currentRotation = currentRotation > 0 ? currentRotation - 360 : currentRotation + 360;
       card.style.transform = `rotateY(${currentRotation}deg)`;
-      void card.offsetWidth; // 强制重绘
+      void card.offsetWidth;
       card.style.transition = '';
     }
     
-    // 方向感统一：点右边始终顺时针（+180），点左边始终逆时针（-180）
     const delta = isRightSide ? 180 : -180;
     currentRotation += delta;
     card.style.transform = `rotateY(${currentRotation}deg)`;
@@ -191,7 +300,6 @@ function showCard() {
       isFlipped = false;
     }
     
-    // 锁定 500ms（与 CSS transition 时长一致）
     isFlipping = true;
     setTimeout(() => { isFlipping = false; }, 500);
   };
@@ -202,30 +310,37 @@ function showCard() {
   if (ttsExample) ttsExample.onclick = (e) => { e.stopPropagation(); speak(currentCard.example); };
 
   document.getElementById('btn-known').onclick = async () => {
-    reviewQueue.shift();
-    reviewStats.known++;
-    currentCard.mastered = true;
-    currentCard.correctCount = (currentCard.correctCount || 0) + 1;
-    currentCard.lastReviewedAt = Date.now();
-    try {
-      await putCard(currentCard);
-    } catch (err) {
-      showGlobalError(friendlyError(err));
+    const isFirstTime = !todayReview.firstAnswered.includes(word);
+    todayReview.queue.shift();
+
+    if (isFirstTime) {
+      todayReview.firstAnswered.push(word);
+      todayReview.correctCount++;
+      const today = getTodayDate();
+      const updated = processAnswer(currentCard, true, today);
+      try { await putCard(updated); } catch (err) { showGlobalError(friendlyError(err)); }
     }
+    // Retry correct → just remove from queue (no DB update)
+
+    saveTodayReview();
     showCard();
   };
 
   document.getElementById('btn-unknown').onclick = async () => {
-    const card = reviewQueue.shift();
-    reviewStats.unknown++;
-    card.reviewCount = (card.reviewCount || 0) + 1;
-    card.lastReviewedAt = Date.now();
-    try {
-      await putCard(card);
-    } catch (err) {
-      showGlobalError(friendlyError(err));
+    const isFirstTime = !todayReview.firstAnswered.includes(word);
+    todayReview.queue.shift();
+
+    if (isFirstTime) {
+      todayReview.firstAnswered.push(word);
+      todayReview.wrongCount++;
+      const today = getTodayDate();
+      const updated = processAnswer(currentCard, false, today);
+      try { await putCard(updated); } catch (err) { showGlobalError(friendlyError(err)); }
     }
-    reviewQueue.push(card);
+    // Wrong → push back to end of queue
+    todayReview.queue.push(word);
+
+    saveTodayReview();
     showCard();
   };
 }
@@ -460,11 +575,13 @@ async function renderLibrary() {
       const item = document.createElement('div');
       item.className = 'lib-item';
       item.dataset.word = c.word;
+      const mc = migrateCard(c);
+      const levelBadge = mc.mastered ? '🏆' : '⭐'.repeat(mc.level || 0) + '☆'.repeat(Math.max(0, 3 - (mc.level || 0)));
       item.innerHTML = `
         <div class="lib-row">
           <span class="lib-word">${esc(c.word)}</span>
           <span class="lib-def">${esc(c.definition)}</span>
-          <span class="lib-badge ${c.mastered ? 'badge-mastered' : 'badge-pending'}">${c.mastered ? '已掌握' : '待复习'}</span>
+          <span class="lib-badge ${mc.mastered ? 'badge-mastered' : 'badge-pending'}">${levelBadge}</span>
         </div>
         <div class="lib-detail" style="display:none;">
           <p>${esc(c.phonetic)} ${esc(c.pos)} <button class="btn-speak btn-speak-lib">🔊</button></p>
@@ -527,7 +644,33 @@ document.getElementById('btn-settings').addEventListener('click', async () => {
   const keyInput = document.getElementById('settings-apikey');
   keyInput.value = localStorage.getItem('minimax_api_key') || '';
   document.getElementById('settings-model').value = localStorage.getItem('minimax_model') || 'MiniMax-M2.1-lightning';
+  updateQuotaButtons();
   await updateSettingsStats();
+});
+
+// --- 配额选择 ---
+function updateQuotaButtons() {
+  const current = getDailyQuota();
+  document.querySelectorAll('.quota-btn').forEach(btn => {
+    btn.classList.toggle('active', parseInt(btn.dataset.quota) === current);
+  });
+}
+
+document.getElementById('quota-buttons').addEventListener('click', (e) => {
+  const btn = e.target.closest('.quota-btn');
+  if (!btn) return;
+  const newQuota = parseInt(btn.dataset.quota);
+  const current = getDailyQuota();
+  if (newQuota === current) return;
+
+  showConfirmDialog('修改配额将重新生成今日任务，当前进度将重置。确定吗？', () => {
+    localStorage.setItem('dailyQuota', String(newQuota));
+    localStorage.removeItem('todayReview');
+    todayReview = null;
+    reviewActive = false;
+    updateQuotaButtons();
+    showToast(`每日配额已设为 ${newQuota}`, 'success');
+  });
 });
 
 async function updateSettingsStats() {
@@ -638,6 +781,9 @@ document.getElementById('btn-clear-vocab').addEventListener('click', async () =>
       await clearAll();
       localStorage.removeItem('card_cache');
       localStorage.removeItem('lastVocabSync');
+      localStorage.removeItem('todayReview');
+      todayReview = null;
+      reviewActive = false;
       showToast('词库已清空', 'success');
       await updateSettingsStats();
     } catch (err) {
@@ -655,6 +801,10 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
       localStorage.removeItem('minimax_model');
       localStorage.removeItem('card_cache');
       localStorage.removeItem('lastVocabSync');
+      localStorage.removeItem('todayReview');
+      localStorage.removeItem('dailyQuota');
+      todayReview = null;
+      reviewActive = false;
       showToast('所有数据已清空', 'success');
       await updateSettingsStats();
     } catch (err) {

@@ -444,3 +444,21 @@ body {
 }
 #btn-update-reload { background: #fff; color: var(--primary); }
 #btn-update-dismiss { background: rgba(255,255,255,0.2); color: #fff; }
+
+/* --- Quota buttons --- */
+.quota-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.quota-btn {
+  flex: 1;
+  min-width: 48px;
+  padding: 10px 8px;
+  border: 2px solid #ddd;
+  border-radius: var(--radius);
+  background: var(--bg);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  transition: all .2s;
+}
+.quota-btn.active { border-color: var(--primary); background: var(--primary); color: #fff; }
+.quota-btn:active { transform: scale(0.95); }
