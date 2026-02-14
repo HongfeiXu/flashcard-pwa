@@ -929,12 +929,13 @@ function getWeekData() {
   try { history = JSON.parse(localStorage.getItem('studyHistory')); } catch {}
   if (!Array.isArray(history)) history = [];
 
-  const today = new Date(getTodayDate() + 'T00:00:00');
+  const todayStr = getTodayDate();
+  const today = new Date(todayStr + 'T00:00:00+08:00');
   const days = [];
   for (let i = 6; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    const dateStr = d.toISOString().slice(0, 10);
+    const dateStr = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
     const entry = history.find(h => h.date === dateStr);
     days.push({
       date: dateStr,
