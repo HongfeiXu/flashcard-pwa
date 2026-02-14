@@ -37,6 +37,43 @@ function updateStudyStreak() {
   localStorage.setItem('studyStreak', JSON.stringify(streak));
 }
 
+// --- 学习记录持久化 ---
+function recordInteraction(isCorrect, isFirstTime) {
+  const today = getTodayDate();
+  let history;
+  try { history = JSON.parse(localStorage.getItem('studyHistory')); } catch {}
+  if (!Array.isArray(history)) history = [];
+
+  // Find or create today's entry
+  let entry = history.find(h => h.date === today);
+  if (!entry) {
+    entry = { date: today, interactions: 0, correct: 0, wrong: 0 };
+    history.push(entry);
+  }
+  entry.interactions++;
+
+  if (isFirstTime) {
+    if (isCorrect) {
+      entry.correct++;
+      localStorage.setItem('totalCorrect', String((parseInt(localStorage.getItem('totalCorrect')) || 0) + 1));
+    } else {
+      entry.wrong++;
+      localStorage.setItem('totalWrong', String((parseInt(localStorage.getItem('totalWrong')) || 0) + 1));
+    }
+  }
+
+  // Cumulative counter
+  localStorage.setItem('totalInteractions', String((parseInt(localStorage.getItem('totalInteractions')) || 0) + 1));
+
+  // Clean entries older than 30 days
+  const cutoff = new Date(today + 'T00:00:00');
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  history = history.filter(h => h.date >= cutoffStr);
+
+  localStorage.setItem('studyHistory', JSON.stringify(history));
+}
+
 // --- Toast 提示（替代 alert）---
 function showToast(msg, type = 'error') {
   let toast = document.getElementById('global-toast');
@@ -104,6 +141,7 @@ function switchTab(id) {
   pages.forEach(p => p.classList.toggle('active', p.id === 'page-' + id));
   if (id === 'review') initReview();
   if (id === 'library') renderLibrary();
+  if (id === 'me') renderMe();
 }
 
 tabs.forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
@@ -343,6 +381,7 @@ async function showCard() {
   document.getElementById('btn-known').onclick = async () => {
     updateStudyStreak();
     const isFirstTime = !todayReview.firstAnswered.includes(word);
+    recordInteraction(true, isFirstTime);
     todayReview.queue.shift();
 
     if (isFirstTime) {
@@ -361,6 +400,7 @@ async function showCard() {
   document.getElementById('btn-unknown').onclick = async () => {
     updateStudyStreak();
     const isFirstTime = !todayReview.firstAnswered.includes(word);
+    recordInteraction(false, isFirstTime);
     todayReview.queue.shift();
 
     if (isFirstTime) {
@@ -682,9 +722,10 @@ async function renderLibrary() {
 }
 
 // --- 设置页 ---
-document.getElementById('btn-settings').addEventListener('click', async () => {
-  document.getElementById('page-library').classList.remove('active');
+document.getElementById('btn-me-settings').addEventListener('click', async () => {
+  document.getElementById('page-me').classList.remove('active');
   document.getElementById('page-settings').classList.add('active');
+  tabs.forEach(t => t.classList.remove('active'));
   const keyInput = document.getElementById('settings-apikey');
   keyInput.value = localStorage.getItem('minimax_api_key') || '';
   document.getElementById('settings-model').value = localStorage.getItem('minimax_model') || 'MiniMax-M2.1-lightning';
@@ -720,33 +761,8 @@ document.getElementById('quota-buttons').addEventListener('click', (e) => {
 async function updateSettingsStats() {
   try {
     const all = await getAllCards();
-    all.forEach(migrateCard);
-    const masteredCount = all.filter(c => c.mastered).length;
-    const levels = [0, 0, 0, 0]; // level 0-3
-    all.forEach(c => {
-      if (!c.mastered && c.level >= 0 && c.level <= 3) levels[c.level]++;
-    });
-
-    // Today's review progress
-    let todayText = '';
-    if (todayReview && todayReview.date === getTodayDate()) {
-      const answered = todayReview.correctCount + todayReview.wrongCount;
-      todayText = `今日：${answered}/${todayReview.words.length}（答对 ${todayReview.correctCount}，答错 ${todayReview.wrongCount}）`;
-    }
-
-    // Study streak
-    let streakText = '';
-    try {
-      const streak = JSON.parse(localStorage.getItem('studyStreak'));
-      if (streak && streak.count > 0) streakText = `连续学习：${streak.count} 天 🔥`;
-    } catch {}
-
     const el = document.getElementById('settings-stats');
-    el.innerHTML = `
-      <div>总词数：${all.length}</div>
-      <div>新词 ${levels[0]} · 初识 ${levels[1]} · 熟悉 ${levels[2]} · 巩固 ${levels[3]} · 掌握 ${masteredCount}</div>
-      ${todayText ? `<div>${esc(todayText)}</div>` : ''}
-      ${streakText ? `<div>${esc(streakText)}</div>` : ''}`;
+    el.innerHTML = `<div>共 ${esc(String(all.length))} 个单词</div>`;
   } catch (err) {
     document.getElementById('settings-stats').textContent = friendlyError(err);
   }
@@ -754,8 +770,7 @@ async function updateSettingsStats() {
 
 document.getElementById('btn-settings-back').addEventListener('click', () => {
   document.getElementById('page-settings').classList.remove('active');
-  document.getElementById('page-library').classList.add('active');
-  renderLibrary();
+  switchTab('me');
 });
 
 document.getElementById('btn-save-settings').addEventListener('click', () => {
@@ -904,6 +919,94 @@ function showConfirmDialog(msg, onConfirm) {
   overlay.querySelector('.confirm-cancel').onclick = () => overlay.remove();
   overlay.querySelector('.confirm-ok').onclick = () => { overlay.remove(); onConfirm(); };
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+// --- "我的"页面 ---
+const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+
+function getWeekData() {
+  let history;
+  try { history = JSON.parse(localStorage.getItem('studyHistory')); } catch {}
+  if (!Array.isArray(history)) history = [];
+
+  const today = new Date(getTodayDate() + 'T00:00:00');
+  const days = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const dateStr = d.toISOString().slice(0, 10);
+    const entry = history.find(h => h.date === dateStr);
+    days.push({
+      date: dateStr,
+      weekday: WEEKDAYS[d.getDay()],
+      interactions: entry ? entry.interactions : 0,
+      isToday: i === 0
+    });
+  }
+  return days;
+}
+
+async function renderMe() {
+  // Streak
+  let streakCount = 0;
+  try {
+    const streak = JSON.parse(localStorage.getItem('studyStreak'));
+    if (streak && streak.count > 0) streakCount = streak.count;
+  } catch {}
+  document.getElementById('me-streak-count').textContent = streakCount;
+
+  // Total interactions
+  const totalInteractions = parseInt(localStorage.getItem('totalInteractions')) || 0;
+  document.getElementById('me-total-count').textContent = totalInteractions;
+
+  // 7-day chart
+  const weekData = getWeekData();
+  const maxVal = Math.max(...weekData.map(d => d.interactions), 1);
+  const chartEl = document.getElementById('me-chart');
+  chartEl.innerHTML = weekData.map(d => {
+    const height = d.interactions > 0 ? Math.max(4, Math.round((d.interactions / maxVal) * 120)) : 4;
+    const colorClass = d.interactions === 0 ? 'empty' : (d.isToday ? 'today' : '');
+    return `<div class="chart-col">
+      <div class="chart-weekday">${esc(d.weekday)}</div>
+      <div class="chart-bar-wrap"><div class="chart-bar ${colorClass}" style="height:${height}px"></div></div>
+      <div class="chart-num">${esc(String(d.interactions))}</div>
+    </div>`;
+  }).join('');
+
+  // Vocab stats
+  try {
+    const all = await getAllCards();
+    all.forEach(migrateCard);
+    const masteredCount = all.filter(c => c.mastered).length;
+    const levels = [0, 0, 0, 0];
+    let difficultCount = 0;
+    all.forEach(c => {
+      if (!c.mastered && c.level >= 0 && c.level <= 3) levels[c.level]++;
+      if (!c.mastered && (c.totalReviews || 0) >= 6 && (c.level || 0) <= 1) difficultCount++;
+    });
+
+    const totalCorrect = parseInt(localStorage.getItem('totalCorrect')) || 0;
+    const totalWrong = parseInt(localStorage.getItem('totalWrong')) || 0;
+    const totalAnswered = totalCorrect + totalWrong;
+    const accuracy = totalAnswered > 0 ? Math.round((totalCorrect / totalAnswered) * 100) : null;
+
+    document.getElementById('me-vocab-stats').innerHTML = `
+      <div class="me-stat-row">总词数 <strong>${esc(String(all.length))}</strong></div>
+      <div class="me-stat-row">新词 ${esc(String(levels[0]))} · 初识 ${esc(String(levels[1]))} · 熟悉 ${esc(String(levels[2]))} · 巩固 ${esc(String(levels[3]))} · 掌握 ${esc(String(masteredCount))}</div>
+      <div class="me-stat-row">✅ 总正确率 ${accuracy !== null ? esc(String(accuracy)) + '%' : '--'}</div>
+      <div class="me-stat-row">🔴 困难词 ${esc(String(difficultCount))} 个</div>`;
+  } catch (err) {
+    document.getElementById('me-vocab-stats').innerHTML = `<div class="error-msg">${esc(friendlyError(err))}</div>`;
+  }
+
+  // Today progress
+  const todayEl = document.getElementById('me-today-stats');
+  if (todayReview && todayReview.date === getTodayDate()) {
+    const answered = todayReview.correctCount + todayReview.wrongCount;
+    todayEl.innerHTML = `<div class="me-stat-row">今日：${esc(String(answered))}/${esc(String(todayReview.words.length))}（对 ${esc(String(todayReview.correctCount))} 错 ${esc(String(todayReview.wrongCount))}）</div>`;
+  } else {
+    todayEl.innerHTML = `<div class="me-stat-row text-muted">今天还没开始复习</div>`;
+  }
 }
 
 // --- 初始化 ---

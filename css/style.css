@@ -463,3 +463,64 @@ body {
 }
 .quota-btn.active { border-color: var(--primary); background: var(--primary); color: #fff; }
 .quota-btn:active { transform: scale(0.95); }
+
+/* --- "我的" page --- */
+.me-header {
+  text-align: center;
+  padding: 20px 0 8px;
+}
+.me-streak { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+.me-total { font-size: 16px; color: var(--text-muted); }
+.me-section {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px;
+  margin-top: 16px;
+}
+.me-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+.me-stat-row { font-size: 14px; line-height: 1.8; }
+
+/* 7-day chart */
+.chart-bar-group {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  padding: 0 4px;
+}
+.chart-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+.chart-weekday { font-size: 12px; color: var(--text-muted); margin-bottom: 6px; }
+.chart-bar-wrap {
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.chart-bar {
+  width: 28px;
+  background: linear-gradient(to top, #4CAF50, #81C784);
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+  transition: height 0.3s;
+}
+.chart-bar.today { background: linear-gradient(to top, #2196F3, #64B5F6); }
+.chart-bar.empty { background: #e0e0e0; }
+.chart-num { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+/* Settings button in "me" page */
+.btn-secondary {
+  background: var(--bg);
+  color: var(--text);
+  border: 1.5px solid #ddd;
+  width: 100%;
+}

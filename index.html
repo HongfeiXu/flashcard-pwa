@@ -33,13 +33,35 @@
   <section class="page" id="page-library">
     <div class="library-stats">
       <span id="library-stats"></span>
-      <button id="btn-settings">⚙️</button>
     </div>
     <div class="sync-bar">
       <button class="btn btn-sync" id="btn-sync-vocab">📰 同步经济学人词汇</button>
       <span class="sync-time" id="sync-time"></span>
     </div>
     <div id="library-list"></div>
+  </section>
+
+  <!-- 我的页 -->
+  <section class="page" id="page-me">
+    <div class="me-header">
+      <div class="me-streak">🔥 连续学习 <span id="me-streak-count">0</span> 天</div>
+      <div class="me-total">📚 累计学习 <span id="me-total-count">0</span> 次</div>
+    </div>
+    <div class="me-section">
+      <div class="me-section-title">最近 7 天</div>
+      <div class="chart-bar-group" id="me-chart"></div>
+    </div>
+    <div class="me-section">
+      <div class="me-section-title">词汇概览</div>
+      <div id="me-vocab-stats"></div>
+    </div>
+    <div class="me-section">
+      <div class="me-section-title">今日</div>
+      <div id="me-today-stats"></div>
+    </div>
+    <div class="me-section">
+      <button class="btn btn-secondary" id="btn-me-settings">⚙️ 设置</button>
+    </div>
   </section>
 
   <!-- 设置页 -->
@@ -105,6 +127,9 @@
     </button>
     <button class="tab-btn" data-tab="library">
       <span class="tab-icon">📋</span>词库
+    </button>
+    <button class="tab-btn" data-tab="me">
+      <span class="tab-icon">👤</span>我的
     </button>
   </nav>
 
