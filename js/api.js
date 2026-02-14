@@ -173,4 +173,4 @@ async function decryptVocab(base64Data) {
   return JSON.parse(new TextDecoder().decode(decrypted));
 }
 
-export { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab };
+export { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab, parseAIResponse, sanitizeWord, friendlyApiError };

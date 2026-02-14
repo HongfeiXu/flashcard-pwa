@@ -51,6 +51,26 @@
 
 ## 🚀 计划中
 
+### Phase 4.5: Vitest 单元测试基础设施
+
+**目标**: 建立单元测试框架，为 SRS 纯逻辑开发提供自动化测试保障
+
+**详细方案**: [docs/development/vitest-unit-testing-setup.md](../development/vitest-unit-testing-setup.md)
+
+**子任务**:
+- [ ] 安装 Vitest + jsdom
+- [ ] 从 app.js 抽取纯逻辑到 `lib/` 模块（esc, safeStr, friendlyError, validateWord, shuffle）
+- [ ] app.js 改为 import lib 模块（功能不变）
+- [ ] 为 lib 模块编写单元测试
+- [ ] 为 api.js 可测函数编写测试（parseAIResponse, sanitizeWord, LRU cache, friendlyApiError）
+- [ ] 为 db.js 编写测试（fake-indexeddb）
+- [ ] 配置 `npm test` 命令
+- [ ] 验证所有测试通过 + 浏览器功能不受影响
+
+**优先级**: 高（SRS 开发前置依赖）
+
+---
+
 ### Phase 5: SRS 间隔重复复习系统
 
 **目标**: 基于遗忘曲线的智能复习系统，每日固定配额，答错重试机制

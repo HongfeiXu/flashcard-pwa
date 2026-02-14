@@ -1,0 +1,30 @@
+{
+  "name": "flashcard-pwa",
+  "version": "1.0.0",
+  "description": "简洁高效的英语单词闪卡应用。输入单词 → AI 自动生成学习卡片 → 离线复习。",
+  "main": "sw.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HongfeiXu/flashcard-pwa.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/HongfeiXu/flashcard-pwa/issues"
+  },
+  "homepage": "https://github.com/HongfeiXu/flashcard-pwa#readme",
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^28.0.0",
+    "vitest": "^4.0.18"
+  }
+}
