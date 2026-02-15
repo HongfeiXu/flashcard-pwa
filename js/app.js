@@ -9,9 +9,8 @@ import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/
 // --- 日期格式化 MM-DD ---
 function formatMMDD(ts) {
   const d = new Date(ts);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const dd = String(d.getDate()).padStart(2, '0');
-  return `${mm}-${dd}`;
+  const parts = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' }).split('-');
+  return `${parts[1]}-${parts[2]}`;
 }
 
 // --- 连续学习天数 ---
@@ -26,7 +25,7 @@ function updateStudyStreak() {
   // 计算昨天日期
   const d = new Date(today + 'T00:00:00');
   d.setDate(d.getDate() - 1);
-  const yesterday = d.toISOString().slice(0, 10);
+  const yesterday = d.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
 
   if (streak.lastDate === yesterday) {
     streak.count++;
@@ -68,7 +67,7 @@ function recordInteraction(isCorrect, isFirstTime) {
   // Clean entries older than 30 days
   const cutoff = new Date(today + 'T00:00:00');
   cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const cutoffStr = cutoff.toLocaleDateString('sv-SE', { timeZone: 'Asia/Shanghai' });
   history = history.filter(h => h.date >= cutoffStr);
 
   localStorage.setItem('studyHistory', JSON.stringify(history));
@@ -886,6 +885,11 @@ document.getElementById('btn-clear-all').addEventListener('click', async () => {
       localStorage.removeItem('lastVocabSync');
       localStorage.removeItem('todayReview');
       localStorage.removeItem('dailyQuota');
+      localStorage.removeItem('studyHistory');
+      localStorage.removeItem('totalInteractions');
+      localStorage.removeItem('totalCorrect');
+      localStorage.removeItem('totalWrong');
+      localStorage.removeItem('studyStreak');
       todayReview = null;
       reviewActive = false;
       showToast('所有数据已清空', 'success');
