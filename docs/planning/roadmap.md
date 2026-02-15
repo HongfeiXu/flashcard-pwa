@@ -1,7 +1,7 @@
 # 功能路线图
 
 > **文件说明**: 已完成功能（Phase 1-3）、计划中功能、技术债务  
-> **最后更新**: 2026-02-13  
+> **最后更新**: 2026-02-15  
 > 
 > **相关文档**:
 > - [CHANGELOG](../../CHANGELOG.md) — 技术变更历史
@@ -49,72 +49,43 @@
 
 ---
 
-## 🚀 计划中
-
-### Phase 4.5: Vitest 单元测试基础设施
-
-**目标**: 建立单元测试框架，为 SRS 纯逻辑开发提供自动化测试保障
-
-**详细方案**: [docs/development/vitest-unit-testing-setup.md](../development/vitest-unit-testing-setup.md)
-
-**子任务**:
-- [x] 安装 Vitest + jsdom
-- [x] 从 app.js 抽取纯逻辑到 `lib/` 模块（esc, safeStr, friendlyError, validateWord, shuffle）
-- [x] app.js 改为 import lib 模块（功能不变）
-- [x] 为 lib 模块编写单元测试
-- [x] 为 api.js 可测函数编写测试（parseAIResponse, sanitizeWord, LRU cache, friendlyApiError）
-- [x] 为 db.js 编写测试（fake-indexeddb）
-- [x] 配置 `npm test` 命令
-- [x] 验证所有测试通过 + 浏览器功能不受影响
-
-**优先级**: 高（SRS 开发前置依赖）
-
----
+### Phase 4.5: Vitest 单元测试基础设施 ✅
+- [x] Vitest + jsdom + fake-indexeddb
+- [x] 纯逻辑抽取到 `lib/utils.js`
+- [x] 92 个测试（utils 23 + api 25 + db 10 + srs 34）
 
 ### Phase 5: SRS 间隔重复复习系统
 
-**目标**: 基于遗忘曲线的智能复习系统，每日固定配额，答错重试机制
-
-**详细方案**: [docs/development/srs-review-strategy.md](../development/srs-review-strategy.md)（v1.1 已确认）
-
-**核心参数**:
-- 4 级熟练度（level 0-3），间隔 1/3/7/30 天
-- 连续答对 2 次升级，新词到掌握约 82 天
-- 每日配额 10/20/30/40/50 可调，新词上限为配额 50%
-- 答错不降级，放回队列直到答对
-
-**子阶段**:
+**详细方案**: [docs/development/srs-review-strategy.md](../development/srs-review-strategy.md)
 
 #### Phase 5.1：核心逻辑 ✅
-- [x] 数据结构调整（删除旧字段，新增 SRS 字段）
-- [x] 每日选词算法（到期优先 + 新词补充）
-- [x] 答题逻辑（答对升级 / 答错保持 / 重试放回）
-- [x] 今日任务持久化（localStorage 队列 + 进度）
-- [x] 复习页 UI 改造（进度条 + 完成页 + 再来一轮）
-- [x] 设置页添加每日配额选择（当天生效）
-- [x] 跨午夜检测 & 重新生成任务
+- [x] SRS 算法（`lib/srs.js`）：4 级间隔、连续答对 2 次升级
+- [x] 每日选词（到期优先 + 新词补满 + 无新词上限）
+- [x] 答题逻辑 + 答错重试（首次更新 DB，重试仅影响队列）
+- [x] 今日任务持久化 + 跨午夜重置
+- [x] 复习页 UI 改造 + 设置页配额选择
 
 #### Phase 5.2：统计增强 ✅
-- [x] 词库页展开详情显示 SRS 信息（复习次数、连对、上次/下次复习日期）
-- [x] 学习统计（连续天数、level 分布）
-- [x] 困难词标记（totalReviews ≥6 且 level ≤1 标 🔴）
+- [x] 词库页 SRS 信息条（复习次数、连对、上次/下次日期）
+- [x] 困难词标记 🔴（totalReviews ≥6 且 level ≤1）
 
-#### Phase 5.3："我的" Tab + 学习统计
-- [ ] 新增第 4 个 Tab "我的"（复习 | 添加 | 词库 | 我的）
-- [ ] 每日学习记录持久化（interactions/correct/wrong，保留 30 天）
-- [ ] 核心激励数字（🔥连续天数 + 📚累计次数）
-- [ ] 7 天活动条（纯 CSS 柱状图）
-- [ ] 词汇概览（level 分布 + 正确率 + 困难词数）
-- [ ] 今日进度
-- [ ] 设置入口迁移到"我的"页面
-- [ ] 设置页瘦身（移除统计，保留纯设置）
+#### Phase 5.3："我的" Tab ✅
+- [x] 第 4 个 Tab "我的"（复习 | 添加 | 词库 | 我的）
+- [x] 学习记录持久化（interactions，30 天滚动）
+- [x] 7 天活动条（纯 CSS 柱状图）
+- [x] 激励数字（🔥连续天数 + 📚累计次数）
+- [x] 词汇概览 + 今日进度
+- [x] 设置入口迁移到"我的"
+- [x] Code review + 时区 bug 修复
+
+---
+
+## 🚀 计划中
 
 #### Phase 5.4：体验优化（待规划）
 - [ ] 成就系统（连续学习 N 天徽章）
 - [ ] 学习日历热力图
 - [ ] 复习提醒（OpenClaw cron → Telegram）
-
-**优先级**: 高（下一个实现目标）
 
 ### Phase 6: 多端同步 (可选)
 

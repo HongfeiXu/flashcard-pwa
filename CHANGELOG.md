@@ -4,6 +4,35 @@
 
 ---
 
+## 2026-02-15 — SRS 间隔重复 + "我的" Tab
+
+### 新增
+- 🧪 **Phase 4.5**: Vitest 单元测试（92 tests: utils 23 + api 25 + db 10 + srs 34）
+- 🧠 **Phase 5.1**: SRS 间隔重复算法（`lib/srs.js`）
+  - 4 级熟练度，间隔 1/3/7/30 天，连续答对 2 次升级
+  - 每日选词（到期优先 + 新词补满，无新词上限）
+  - 答错放回队列重试，首次答题更新 DB，重试仅影响队列
+  - 今日任务持久化 + 跨午夜自动重置
+  - 设置页配额选择（10/20/30/40/50）
+- ⭐ **Phase 5.2**: 词库页 SRS 信息条 + 困难词标记 🔴
+- 👤 **Phase 5.3**: "我的" Tab
+  - 7 天学习活动条（纯 CSS 柱状图）
+  - 激励数字（🔥连续天数 + 📚累计次数）
+  - 词汇概览 + 今日进度
+  - 设置入口迁移到"我的"页面
+
+### 修复
+- 🐛 7 天活动条时区 bug（`toISOString` → `toLocaleDateString` Asia/Shanghai）
+- 🐛 `updateStudyStreak`/`recordInteraction`/`formatMMDD` 时区统一
+- 🐛 重置应用时清理统计相关 localStorage
+
+### 架构
+- 纯逻辑抽取到 `lib/utils.js`（esc, safeStr, friendlyError, validateWord, shuffle）
+- SRS 算法独立模块 `lib/srs.js`（processAnswer 为纯函数）
+- api.js 补充 export（parseAIResponse, sanitizeWord, friendlyApiError）
+
+---
+
 ## 2026-02-13 — 文档重整
 
 ### 新增
