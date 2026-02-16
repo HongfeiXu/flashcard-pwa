@@ -173,4 +173,69 @@ async function decryptVocab(base64Data) {
   return JSON.parse(new TextDecoder().decode(decrypted));
 }
 
-export { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab, parseAIResponse, sanitizeWord, friendlyApiError };
+async function generateMnemonic(word) {
+  const apiKey = getApiKey();
+  if (!apiKey) throw new Error('NO_API_KEY');
+
+  const safe = sanitizeWord(word);
+  if (!safe) throw new Error('请输入有效的英文单词');
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: getModel(),
+        max_tokens: 1500,
+        system: `你是一个英语词汇记忆助手，面向中文母语者。当用户给出一个英文单词时，请按以下结构组织回复：
+
+1. 基本信息：单词、音标、核心中文释义，简洁一行。
+2. 记忆方法（至少提供两种，灵活选用）：
+   ∙ 词根拆词法：拆解前缀、词根、后缀，追溯拉丁/希腊语源，讲清构词逻辑。
+   ∙ 谐音联想法：利用发音与中文的相似性，构建生动画面。
+   ∙ 画面联想法：创造一个具体、夸张、有情感的场景帮助记忆。
+   ∙ 同根词串记：列出共享同一词根的常见单词，形成记忆网络。
+3. 常见搭配与例句：给出 2-3 个真实常用的搭配或例句，附中文翻译，帮助用户理解语境和用法。
+4. 记忆锚点总结：最后用一句话点明最核心的记忆抓手，让用户带走一个关键印象。
+
+注意事项：
+∙ 语言风格轻松自然，不要学术化。
+∙ 联想要具体生动，避免抽象空洞的解释。
+∙ 优先选择对中文母语者最直觉的记忆路径。
+∙ 用加粗标记关键词和词根，方便视觉扫描。
+∙ 如果单词有有趣的词源故事，可以简要提及。`,
+        messages: [{ role: 'user', content: safe }]
+      }),
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      throw new Error(friendlyApiError(res.status, errText));
+    }
+
+    const data = await res.json();
+    const textBlock = data.content.find(b => b.type === 'text');
+    if (!textBlock) throw new Error('AI 未返回有效内容，请重试');
+    let text = textBlock.text.trim();
+    text = text.replace(/<think>[\s\S]*?<\/think>/g, '').trim();
+    return text;
+  } catch (err) {
+    clearTimeout(timeoutId);
+    if (err.name === 'AbortError') throw new Error('请求超时（30秒），请检查网络后重试');
+    if (err instanceof TypeError && err.message.includes('fetch')) {
+      throw new Error('网络连接失败，请检查网络设置');
+    }
+    throw err;
+  }
+}
+
+export { generateCard, generateMnemonic, getApiKey, getCachedCard, setCachedCard, decryptVocab, parseAIResponse, sanitizeWord, friendlyApiError };

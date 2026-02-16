@@ -268,6 +268,36 @@ body {
 .stat-num { font-size: 28px; font-weight: 700; }
 .stat-label { font-size: 13px; color: var(--text-muted); }
 
+/* --- Mnemonic --- */
+.btn-mnemonic {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffc107;
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  margin: 12px auto 0;
+  display: inline-block;
+  transition: transform .1s, opacity .1s;
+}
+.btn-mnemonic:active { transform: scale(0.95); }
+.btn-mnemonic:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.mnemonic-area {
+  background: #f8f9fa;
+  border-radius: 12px;
+  padding: 16px;
+  margin: 12px 0;
+  font-size: 14px;
+  line-height: 1.8;
+  max-height: 300px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  text-align: left;
+  animation: fadeIn 0.3s;
+}
+
 /* Settings btn */
 #btn-settings { background: none; border: none; font-size: 22px; cursor: pointer; margin-left: auto; }
 

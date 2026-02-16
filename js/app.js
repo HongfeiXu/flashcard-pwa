@@ -1,10 +1,19 @@
 // app.js - 主逻辑
 
 import { getAllCards, getCard, addCard, putCard, deleteCard, clearAll, bulkImport } from './db.js';
-import { generateCard, getApiKey, getCachedCard, setCachedCard, decryptVocab } from './api.js';
+import { generateCard, generateMnemonic, getApiKey, getCachedCard, setCachedCard, decryptVocab } from './api.js';
 import { speak } from './tts.js';
 import { esc, safeStr, friendlyError, validateWord, shuffle } from './lib/utils.js';
 import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/srs.js';
+
+// --- 助记文本渲染（markdown bold → HTML）---
+function renderMnemonicText(text) {
+  // HTML 转义先
+  let safe = esc(text);
+  // 再将 **text** → <strong>text</strong>
+  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  return safe;
+}
 
 // --- 日期格式化 MM-DD ---
 function formatMMDD(ts) {
@@ -333,6 +342,10 @@ async function showCard() {
     <div class="review-actions" id="review-actions" style="display:none;">
       <button class="btn btn-danger" id="btn-unknown">❌ 不认识</button>
       <button class="btn btn-success" id="btn-known">✅ 认识</button>
+    </div>
+    <div id="mnemonic-wrapper" style="display:none;width:100%;text-align:center;">
+      <button class="btn-mnemonic" id="btn-mnemonic">💡 助记</button>
+      <div class="mnemonic-area" id="mnemonic-area" style="display:none;"></div>
     </div>`;
 
   // 翻卡动画（保留原有逻辑）
@@ -362,9 +375,11 @@ async function showCard() {
     
     if (!isFlipped) {
       document.getElementById('review-actions').style.display = 'flex';
+      document.getElementById('mnemonic-wrapper').style.display = 'block';
       isFlipped = true;
     } else {
       document.getElementById('review-actions').style.display = 'none';
+      document.getElementById('mnemonic-wrapper').style.display = 'none';
       isFlipped = false;
     }
     
@@ -376,6 +391,70 @@ async function showCard() {
   document.getElementById('btn-tts-word-back').onclick = (e) => { e.stopPropagation(); speak(currentCard.word); };
   const ttsExample = document.getElementById('btn-tts-example');
   if (ttsExample) ttsExample.onclick = (e) => { e.stopPropagation(); speak(currentCard.example); };
+
+  // --- 助记按钮 ---
+  document.getElementById('btn-mnemonic').onclick = async () => {
+    const btn = document.getElementById('btn-mnemonic');
+    const area = document.getElementById('mnemonic-area');
+
+    // Toggle if already showing
+    if (area.style.display !== 'none' && area.innerHTML) {
+      area.style.display = 'none';
+      return;
+    }
+    if (area.style.display === 'none' && currentCard.mnemonic) {
+      area.innerHTML = renderMnemonicText(currentCard.mnemonic);
+      area.style.display = 'block';
+      return;
+    }
+
+    // Check cache
+    if (currentCard.mnemonic) {
+      area.innerHTML = renderMnemonicText(currentCard.mnemonic);
+      area.style.display = 'block';
+      return;
+    }
+
+    // No API key check
+    if (!getApiKey()) {
+      area.innerHTML = '<span class="error-msg">请先在设置中输入 API Key</span>';
+      area.style.display = 'block';
+      return;
+    }
+
+    // Generate
+    const savedWord = currentCard.word;
+    btn.textContent = '⏳ 生成中...';
+    btn.disabled = true;
+    area.style.display = 'none';
+
+    try {
+      const text = await generateMnemonic(savedWord);
+      // Card may have changed
+      if (currentCard && currentCard.word === savedWord) {
+        currentCard.mnemonic = text;
+        await putCard(currentCard);
+        area.innerHTML = renderMnemonicText(text);
+        area.style.display = 'block';
+        btn.textContent = '💡 助记';
+        btn.disabled = false;
+      }
+    } catch (err) {
+      if (currentCard && currentCard.word === savedWord) {
+        const msg = err.message === 'NO_API_KEY' ? '请先在设置中输入 API Key' : err.message;
+        area.innerHTML = `<span class="error-msg">${esc(msg)}</span> <button class="btn btn-sm" id="btn-mnemonic-retry">重试</button>`;
+        area.style.display = 'block';
+        btn.textContent = '💡 助记';
+        btn.disabled = false;
+        const retryBtn = document.getElementById('btn-mnemonic-retry');
+        if (retryBtn) retryBtn.onclick = () => {
+          area.style.display = 'none';
+          area.innerHTML = '';
+          document.getElementById('btn-mnemonic').onclick();
+        };
+      }
+    }
+  };
 
   document.getElementById('btn-known').onclick = async () => {
     updateStudyStreak();
