@@ -34,16 +34,19 @@ function renderMnemonicText(text, word) {
     if (/^### /.test(safe)) return `<h4>${safe.slice(4)}</h4>`;
     if (/^## /.test(safe)) return `<h3>${safe.slice(3)}</h3>`;
     if (/^# /.test(safe)) return `<h3>${safe.slice(2)}</h3>`;
-    // > 引用块
-    if (/^&gt; /.test(safe)) return `<blockquote style="border-left:3px solid #ffc107;padding-left:10px;margin:8px 0;color:#666;">${safe.slice(5)}</blockquote>`;
+    // > 引用块（先提取内容，后面统一做 bold/italic 替换）
+    let isBlockquote = false;
+    if (/^&gt; /.test(safe)) { safe = safe.slice(5); isBlockquote = true; }
     // **text** → <strong>
     safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     // *text* → <em>（单星号斜体，注意不要匹配 ** 的情况）
     safe = safe.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
     // 无序列表 - item / ∙ item
-    if (/^\s*[-∙] /.test(safe)) return `<p style="margin:2px 0;padding-left:16px;">• ${safe.replace(/^\s*[-∙] /, '')}</p>`;
-    // 空行 → 换行
+    if (/^\s*[-∙] /.test(safe)) safe = `• ${safe.replace(/^\s*[-∙] /, '')}`;
+    // 包装输出
     if (!safe.trim()) return '<br>';
+    if (isBlockquote) return `<blockquote style="border-left:3px solid #ffc107;padding-left:10px;margin:8px 0;color:#666;">${safe}</blockquote>`;
+    if (safe.startsWith('• ')) return `<p style="margin:2px 0;padding-left:16px;">${safe}</p>`;
     return `<p style="margin:4px 0">${safe}</p>`;
   }).join('');
 }
