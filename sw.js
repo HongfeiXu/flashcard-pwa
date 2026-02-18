@@ -1,6 +1,6 @@
 // SW 版本号：基于部署时间自动生成，git push 时更新此行即可
 // 也可以手动 bump，但 CI/CD 中建议用 sed 替换
-const CACHE_VERSION = 'v3-1771425800';
+const CACHE_VERSION = 'v4-1771426200';
 const CACHE_NAME = `flashcard-${CACHE_VERSION}`;
 const STATIC_ASSETS = [
   './',

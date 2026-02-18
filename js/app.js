@@ -7,6 +7,31 @@ import { esc, safeStr, friendlyError, validateWord, shuffle } from './lib/utils.
 import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/srs.js';
 import { renderMnemonicText } from './lib/markdown.js';
 
+// --- 主题切换 ---
+function getTheme() {
+  return localStorage.getItem('theme') || 'auto';
+}
+
+function setTheme(mode) {
+  localStorage.setItem('theme', mode);
+  document.documentElement.setAttribute('data-theme', mode);
+  updateThemeButtons();
+}
+
+function updateThemeButtons() {
+  const current = getTheme();
+  document.querySelectorAll('.theme-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.theme === current);
+  });
+}
+
+// Theme switcher event delegation
+document.getElementById('theme-switcher').addEventListener('click', (e) => {
+  const btn = e.target.closest('.theme-btn');
+  if (!btn) return;
+  setTheme(btn.dataset.theme);
+});
+
 // --- 日期格式化 MM-DD ---
 function formatMMDD(ts) {
   const d = new Date(ts);
@@ -1019,6 +1044,7 @@ function getWeekData() {
 }
 
 async function renderMe() {
+  updateThemeButtons();
   // Streak
   let streakCount = 0;
   try {
