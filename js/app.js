@@ -40,6 +40,8 @@ function renderMnemonicText(text, word) {
     safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     // *text* → <em>（单星号斜体，注意不要匹配 ** 的情况）
     safe = safe.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
+    // 无序列表 - item / ∙ item
+    if (/^\s*[-∙] /.test(safe)) return `<p style="margin:2px 0;padding-left:16px;">• ${safe.replace(/^\s*[-∙] /, '')}</p>`;
     // 空行 → 换行
     if (!safe.trim()) return '<br>';
     return `<p style="margin:4px 0">${safe}</p>`;
