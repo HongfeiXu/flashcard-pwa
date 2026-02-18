@@ -1107,5 +1107,14 @@ async function renderMe() {
   }
 }
 
+// --- 回到顶部按钮 ---
+const scrollTopBtn = document.getElementById('btn-scroll-top');
+window.addEventListener('scroll', () => {
+  scrollTopBtn.classList.toggle('show', window.scrollY > 100);
+});
+scrollTopBtn.addEventListener('click', () => {
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+});
+
 // --- 初始化 ---
 switchTab('review');
