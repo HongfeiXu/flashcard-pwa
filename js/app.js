@@ -6,13 +6,24 @@ import { speak } from './tts.js';
 import { esc, safeStr, friendlyError, validateWord, shuffle } from './lib/utils.js';
 import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/srs.js';
 
-// --- 助记文本渲染（markdown bold → HTML）---
+// --- 助记文本渲染（简易 markdown → HTML）---
 function renderMnemonicText(text) {
-  // HTML 转义先
-  let safe = esc(text);
-  // 再将 **text** → <strong>text</strong>
-  safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-  return safe;
+  // 按行处理
+  return text.split('\n').map(line => {
+    // HTML 转义
+    let safe = esc(line);
+    // --- → <hr>
+    if (/^-{3,}$/.test(safe.trim())) return '<hr>';
+    // ### / ## / # → 标题
+    if (/^### /.test(safe)) return `<h4>${safe.slice(4)}</h4>`;
+    if (/^## /.test(safe)) return `<h3>${safe.slice(3)}</h3>`;
+    if (/^# /.test(safe)) return `<h3>${safe.slice(2)}</h3>`;
+    // **text** → <strong>
+    safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // 空行 → 换行
+    if (!safe.trim()) return '<br>';
+    return `<p style="margin:4px 0">${safe}</p>`;
+  }).join('');
 }
 
 // --- 日期格式化 MM-DD ---
