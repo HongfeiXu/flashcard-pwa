@@ -36,7 +36,8 @@ function renderMnemonicText(text, word) {
     if (/^# /.test(safe)) return `<h3>${safe.slice(2)}</h3>`;
     // > 引用块（先提取内容，后面统一做 bold/italic 替换）
     let isBlockquote = false;
-    if (/^&gt; /.test(safe)) { safe = safe.slice(5); isBlockquote = true; }
+    const bqMatch = safe.match(/^\s*&gt; (.*)/);
+    if (bqMatch) { safe = bqMatch[1]; isBlockquote = true; }
     // **text** → <strong>
     safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
     // *text* → <em>（单星号斜体，注意不要匹配 ** 的情况）
