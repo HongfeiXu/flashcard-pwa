@@ -821,6 +821,7 @@ document.getElementById('btn-me-settings').addEventListener('click', async () =>
   keyInput.value = localStorage.getItem('minimax_api_key') || '';
   document.getElementById('settings-model').value = localStorage.getItem('minimax_model') || 'MiniMax-M2.1-lightning';
   updateQuotaButtons();
+  updateThemeButtons();
   await updateSettingsStats();
 });
 
@@ -1044,7 +1045,6 @@ function getWeekData() {
 }
 
 async function renderMe() {
-  updateThemeButtons();
   // Streak
   let streakCount = 0;
   try {
