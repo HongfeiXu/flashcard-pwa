@@ -7,9 +7,25 @@ import { esc, safeStr, friendlyError, validateWord, shuffle } from './lib/utils.
 import { selectTodayWords, processAnswer, getTodayDate, MAX_LEVEL } from './lib/srs.js';
 
 // --- 助记文本渲染（简易 markdown → HTML）---
-function renderMnemonicText(text) {
-  // 按行处理
-  return text.split('\n').map(line => {
+function renderMnemonicText(text, word) {
+  let lines = text.split('\n');
+
+  // 裁掉首行基本信息（如果第一个非空行包含单词本身，视为重复）
+  if (word) {
+    const w = word.toLowerCase();
+    for (let i = 0; i < lines.length && i < 3; i++) {
+      if (lines[i].trim() && lines[i].toLowerCase().includes(w)) {
+        lines = lines.slice(i + 1);
+        // 跳过紧随的空行
+        while (lines.length && !lines[0].trim()) lines.shift();
+        break;
+      }
+      if (lines[i].trim()) break; // 非空行但不含单词，停止
+    }
+  }
+
+  // 按行渲染
+  return lines.map(line => {
     // HTML 转义
     let safe = esc(line);
     // --- → <hr>
@@ -18,8 +34,12 @@ function renderMnemonicText(text) {
     if (/^### /.test(safe)) return `<h4>${safe.slice(4)}</h4>`;
     if (/^## /.test(safe)) return `<h3>${safe.slice(3)}</h3>`;
     if (/^# /.test(safe)) return `<h3>${safe.slice(2)}</h3>`;
+    // > 引用块
+    if (/^&gt; /.test(safe)) return `<blockquote style="border-left:3px solid #ffc107;padding-left:10px;margin:8px 0;color:#666;">${safe.slice(5)}</blockquote>`;
     // **text** → <strong>
     safe = safe.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // *text* → <em>（单星号斜体，注意不要匹配 ** 的情况）
+    safe = safe.replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, '<em>$1</em>');
     // 空行 → 换行
     if (!safe.trim()) return '<br>';
     return `<p style="margin:4px 0">${safe}</p>`;
@@ -414,14 +434,14 @@ async function showCard() {
       return;
     }
     if (area.style.display === 'none' && currentCard.mnemonic) {
-      area.innerHTML = renderMnemonicText(currentCard.mnemonic);
+      area.innerHTML = renderMnemonicText(currentCard.mnemonic, currentCard.word);
       area.style.display = 'block';
       return;
     }
 
     // Check cache
     if (currentCard.mnemonic) {
-      area.innerHTML = renderMnemonicText(currentCard.mnemonic);
+      area.innerHTML = renderMnemonicText(currentCard.mnemonic, currentCard.word);
       area.style.display = 'block';
       return;
     }
@@ -445,7 +465,7 @@ async function showCard() {
       if (currentCard && currentCard.word === savedWord) {
         currentCard.mnemonic = text;
         await putCard(currentCard);
-        area.innerHTML = renderMnemonicText(text);
+        area.innerHTML = renderMnemonicText(text, currentCard.word);
         area.style.display = 'block';
         btn.textContent = '💡 助记';
         btn.disabled = false;
