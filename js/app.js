@@ -12,9 +12,31 @@ function getTheme() {
   return localStorage.getItem('theme') || 'auto';
 }
 
+function applyDarkAttr(mode) {
+  const el = document.documentElement;
+  if (mode === 'dark') {
+    el.setAttribute('data-dark', '');
+  } else if (mode === 'light') {
+    el.removeAttribute('data-dark');
+  } else {
+    // auto
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      el.setAttribute('data-dark', '');
+    } else {
+      el.removeAttribute('data-dark');
+    }
+  }
+}
+
+// Listen for system theme changes (for auto mode)
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if (getTheme() === 'auto') applyDarkAttr('auto');
+});
+
 function setTheme(mode) {
   localStorage.setItem('theme', mode);
   document.documentElement.setAttribute('data-theme', mode);
+  applyDarkAttr(mode);
   updateThemeButtons();
 }
 
@@ -269,7 +291,7 @@ function showCompletePage() {
       </div>
       <div style="display:flex;gap:10px;">
         <button class="btn btn-primary" id="btn-again">再来一轮</button>
-        <button class="btn" id="btn-back-lib" style="background:#eee;color:#333;">返回词库</button>
+        <button class="btn btn-back-lib" id="btn-back-lib">返回词库</button>
       </div>
     </div>`;
   document.getElementById('btn-again').onclick = async () => {
@@ -1109,12 +1131,20 @@ async function renderMe() {
 
 // --- 回到顶部按钮 ---
 const scrollTopBtn = document.getElementById('btn-scroll-top');
+let _scrollTicking = false;
 window.addEventListener('scroll', () => {
-  scrollTopBtn.classList.toggle('show', window.scrollY > 100);
+  if (!_scrollTicking) {
+    _scrollTicking = true;
+    requestAnimationFrame(() => {
+      scrollTopBtn.classList.toggle('show', window.scrollY > 100);
+      _scrollTicking = false;
+    });
+  }
 });
 scrollTopBtn.addEventListener('click', () => {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 });
 
 // --- 初始化 ---
+applyDarkAttr(getTheme());
 switchTab('review');
