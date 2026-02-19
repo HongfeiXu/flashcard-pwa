@@ -15,6 +15,10 @@
 
 ### 优化
 - Phase 5.5 助记功能：Markdown 渲染优化、callAPI 提取、单元测试
+- 🔧 **Phase 5.6 Code Review 修复**：
+  - CSS dark/auto 重复规则合并为 `[data-dark]` 单套方案
+  - 移除所有 `!important` 声明
+  - scroll 事件加 rAF 节流，避免主线程阻塞
 
 ---
 
