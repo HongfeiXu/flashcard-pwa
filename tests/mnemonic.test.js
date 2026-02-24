@@ -70,4 +70,29 @@ describe('renderMnemonicText', () => {
     // single empty line → <br>
     expect(html).toBe('<br>');
   });
+
+  it('renders markdown table with header and data rows', () => {
+    const input = '| 搭配 | 释义 |\n|---|---|\n| give up | 放弃 |';
+    const html = renderMnemonicText(input);
+    expect(html).toContain('<table');
+    expect(html).toContain('<th');
+    expect(html).toContain('搭配');
+    expect(html).toContain('<td');
+    expect(html).toContain('give up');
+    expect(html).toContain('放弃');
+  });
+
+  it('renders table without separator row', () => {
+    const input = '| col1 | col2 |\n| a | b |';
+    const html = renderMnemonicText(input);
+    expect(html).toContain('<table');
+    expect(html).toContain('col1');
+    expect(html).toContain('a');
+  });
+
+  it('renders bold inside table cell', () => {
+    const input = '| **词根** | 含义 |\n|---|\n| pre- | 前 |';
+    const html = renderMnemonicText(input);
+    expect(html).toContain('<strong>词根</strong>');
+  });
 });
