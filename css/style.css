@@ -107,8 +107,9 @@ body {
 .card-phonetic { color: var(--text-muted); font-size: 18px; }
 .card-pos { color: var(--primary); font-weight: 600; font-size: 15px; }
 .card-def { font-size: 20px; font-weight: 600; }
-.card-example { font-size: 15px; color: #333; line-height: 1.5; margin-top: 8px; }
-.card-example-cn { font-size: 14px; color: var(--text-muted); line-height: 1.5; }
+.card-example-front { font-size: 18px; color: var(--text-muted); line-height: 1.5; margin-top: 8px; padding: 0 8px; word-break: break-word; }
+.card-example { font-size: 18px; color: #333; line-height: 1.5; margin-top: 8px; }
+.card-example-cn { font-size: 18px; color: var(--text-muted); line-height: 1.5; }
 
 .btn-speak {
   background: none;

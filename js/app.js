@@ -366,6 +366,7 @@ async function showCard() {
       <div class="card">
         <div class="card-front">
           <div class="card-word">${esc(currentCard.word)}</div>
+          ${currentCard.example ? `<div class="card-example-front">${esc(currentCard.example)}</div>` : ''}
           <button class="btn-speak" id="btn-tts">🔊</button>
         </div>
         <div class="card-back">
